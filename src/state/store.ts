@@ -190,14 +190,26 @@ if (import.meta.env.DEV) {
 }
 
 /**
+ * 根据回看索引安全解析出应展示的历史帧。
+ * 若未处于回看模式或历史为空返回 null；索引越界时夹紧到有效范围，
+ * 保证历史滚动裁剪后仍返回合法快照，杜绝越界访问。
+ */
+export function resolveReviewSnapshot(
+  history: EcosystemSnapshot[],
+  reviewIndex: number | null,
+): EcosystemSnapshot | null {
+  if (reviewIndex === null || history.length === 0) return null;
+  const clamped = Math.max(0, Math.min(reviewIndex, history.length - 1));
+  return history[clamped];
+}
+
+/**
  * 选择器：返回当前应展示的生物列表。
  * 回看模式下返回历史帧，否则返回实时状态。
  */
 export function useDisplayedOrganisms(): Organism[] {
   return useStore((s) => {
-    if (s.reviewIndex !== null && s.history[s.reviewIndex]) {
-      return s.history[s.reviewIndex].organisms;
-    }
-    return s.sim.organisms;
+    const snap = resolveReviewSnapshot(s.history, s.reviewIndex);
+    return snap ? snap.organisms : s.sim.organisms;
   });
 }

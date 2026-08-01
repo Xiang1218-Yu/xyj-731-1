@@ -135,6 +135,13 @@ body {
   white-space: nowrap;
 }
 
+.timeline-tick {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .timeline-slider {
   flex: 1;
   accent-color: var(--accent);
@@ -411,6 +418,13 @@ body {
   font-weight: 700;
   margin-bottom: 6px;
   font-size: 14px;
+}
+
+.relation-tracking {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .relation-line {

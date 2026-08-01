@@ -1,4 +1,4 @@
-import { useStore } from './store';
+import { useStore, resolveReviewSnapshot } from './store';
 import { computeClock, computeLight, computePhase } from '../simulation/engine';
 import type { DayPhase } from '../domain/types';
 
@@ -22,8 +22,8 @@ export interface DisplayClock {
  */
 export function useDisplayClock(): DisplayClock {
   return useStore((s) => {
-    if (s.reviewIndex !== null && s.history[s.reviewIndex]) {
-      const snap = s.history[s.reviewIndex];
+    const snap = resolveReviewSnapshot(s.history, s.reviewIndex);
+    if (snap) {
       return {
         clock: snap.clock,
         phase: snap.phase,

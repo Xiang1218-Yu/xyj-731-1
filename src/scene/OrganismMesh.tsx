@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import type { Organism } from '../domain/types';
@@ -67,6 +67,23 @@ export function OrganismMesh({ organism, phase }: OrganismMeshProps): JSX.Elemen
     }
   });
 
+  // 记录本个体是否正处于悬停状态，用于在卸载时正确复位指针，
+  // 避免生物在被悬停时死亡/卸载导致 onPointerOut 不触发、光标卡在 pointer。
+  const hoveringRef = useRef(false);
+  const setHovering = (hovering: boolean): void => {
+    hoveringRef.current = hovering;
+    document.body.style.cursor = hovering ? 'pointer' : 'auto';
+  };
+
+  // 卸载清理：若卸载时仍处于悬停，则复位光标，杜绝指针泄漏。
+  useEffect(() => {
+    return () => {
+      if (hoveringRef.current) {
+        document.body.style.cursor = 'auto';
+      }
+    };
+  }, []);
+
   const pos: [number, number, number] = [
     organism.position.x,
     organism.position.y,
@@ -86,10 +103,10 @@ export function OrganismMesh({ organism, phase }: OrganismMeshProps): JSX.Elemen
         }}
         onPointerOver={(e) => {
           e.stopPropagation();
-          document.body.style.cursor = 'pointer';
+          setHovering(true);
         }}
         onPointerOut={() => {
-          document.body.style.cursor = 'auto';
+          setHovering(false);
         }}
       >
         <sphereGeometry args={[Math.max(species.size * 1.8, 0.6), 12, 12]} />

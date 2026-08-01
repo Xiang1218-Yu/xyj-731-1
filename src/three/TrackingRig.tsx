@@ -24,11 +24,16 @@ export function TrackingRig({ controlsRef }: TrackingRigProps) {
   useFrame(() => {
     const controls = controlsRef.current;
     if (!controls) return;
-    const { engine, trackedId } = useEcosystemStore.getState();
+    const { engine, trackedId, reviewIndex } = useEcosystemStore.getState();
 
     // 计算期望目标点：追踪生物位置 or 缸中心
+    // 回看模式下从快照中查找追踪目标，与画面展示的回看状态保持一致
     const desired = scratch.current;
-    const tracked = trackedId ? engine.creatures.find((c) => c.id === trackedId) : undefined;
+    const tracked = trackedId
+      ? reviewIndex !== null
+        ? engine.history.at(reviewIndex)?.creatures.find((c) => c.id === trackedId)
+        : engine.creatures.find((c) => c.id === trackedId)
+      : undefined;
     if (tracked) {
       desired.set(tracked.position[0], tracked.position[1], tracked.position[2]);
     } else {

@@ -28,6 +28,8 @@ interface EcosystemStore {
   reviewIndex: number | null;
   /** 当前场景名（顶部展示） */
   sceneName: string;
+  /** 当前预设场景 id（3D 环境装饰差异化用；空缸为 null） */
+  presetId: PresetScene['id'] | null;
   panels: PanelVisibility;
 
   /** 从引擎同步轻量状态（每帧调用一次） */
@@ -55,6 +57,7 @@ export const useEcosystemStore = create<EcosystemStore>((set, get) => ({
   highlightedSpecies: null,
   reviewIndex: null,
   sceneName: '空白生态缸',
+  presetId: null,
   panels: { species: true, foodWeb: true, timeline: true },
 
   syncFromEngine: () => set((s) => ({ version: s.version + 1 })),
@@ -80,6 +83,7 @@ export const useEcosystemStore = create<EcosystemStore>((set, get) => ({
     engine.loadPreset(preset);
     set({
       sceneName: preset.name,
+      presetId: preset.id,
       trackedId: null,
       highlightedSpecies: null,
       reviewIndex: null,
@@ -100,6 +104,7 @@ export const useEcosystemStore = create<EcosystemStore>((set, get) => ({
     engine.writeSnapshotPublic();
     set({
       sceneName: '空白生态缸',
+      presetId: null,
       trackedId: null,
       highlightedSpecies: null,
       reviewIndex: null,

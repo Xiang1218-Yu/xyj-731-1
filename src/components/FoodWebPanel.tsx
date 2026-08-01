@@ -42,7 +42,22 @@ export function FoodWebPanel() {
 
   const highlightedSpecies = useEcosystemStore((s) => s.highlightedSpecies);
   const setHighlightedSpecies = useEcosystemStore((s) => s.setHighlightedSpecies);
+  const trackedId = useEcosystemStore((s) => s.trackedId);
+  const reviewIndex = useEcosystemStore((s) => s.reviewIndex);
+  const engine = useEcosystemStore((s) => s.engine);
+  // version 驱动：追踪目标变化时同步刷新节点高亮
+  useEcosystemStore((s) => s.version);
   const [hovered, setHovered] = useState<SpeciesId | null>(null);
+
+  // 追踪模式联动：被追踪个体的所属物种在食物网中自动高亮（金色圈）
+  const trackedSpecies: SpeciesId | null = trackedId
+    ? (reviewIndex !== null
+        ? engine.history.at(reviewIndex)?.creatures.find((c) => c.id === trackedId)
+        : engine.creatures.find((c) => c.id === trackedId)
+      )?.speciesId ?? null
+    : null;
+  // 手动点击选中的物种优先；未手动选中时跟随追踪物种
+  const activeNode = highlightedSpecies ?? trackedSpecies;
 
   /** 所有捕食关系边：prey → predator（能量流动方向） */
   const edges = useMemo(() => {
@@ -64,7 +79,7 @@ export function FoodWebPanel() {
       <div className="mb-1 flex items-center justify-between">
         <h2 className="font-display text-sm font-bold text-teal-100">食物网</h2>
         <span className="text-[10px] text-teal-100/40">
-          点击节点高亮物种 · 悬停查看捕食关系 · 箭头指向捕食者
+          点击节点高亮物种 · 悬停查看捕食关系 · 追踪生物自动定位节点
         </span>
       </div>
 
@@ -87,7 +102,7 @@ export function FoodWebPanel() {
             if (!a || !b) return null;
             const midX = (a.x + b.x) / 2;
             const isActive =
-              highlightedSpecies !== null && (e.from === highlightedSpecies || e.to === highlightedSpecies);
+              activeNode !== null && (e.from === activeNode || e.to === activeNode);
             const isHover = hovered !== null && (e.from === hovered || e.to === hovered);
             return (
               <path
@@ -105,19 +120,27 @@ export function FoodWebPanel() {
           {/* 物种节点 */}
           {layout.map((n) => {
             const def = SPECIES[n.id];
-            const active = highlightedSpecies === n.id;
+            const active = activeNode === n.id;
+            const isTrackedNode = trackedSpecies === n.id && highlightedSpecies === null;
             return (
               <g
                 key={n.id}
                 transform={`translate(${n.x}, ${n.y})`}
                 className="cursor-pointer"
-                onClick={() => setHighlightedSpecies(active ? null : n.id)}
+                onClick={() => setHighlightedSpecies(highlightedSpecies === n.id ? null : n.id)}
                 onMouseEnter={() => setHovered(n.id)}
                 onMouseLeave={() => setHovered(null)}
               >
-                {/* 选中态外圈 */}
+                {/* 选中态外圈：手动选中=青色虚线 / 追踪联动=金色虚线 */}
                 {active && (
-                  <circle r="24" fill="none" stroke="#3ee6c4" strokeWidth="2" strokeDasharray="4 3" opacity="0.9" />
+                  <circle
+                    r="24"
+                    fill="none"
+                    stroke={isTrackedNode ? '#ffd166' : '#3ee6c4'}
+                    strokeWidth="2"
+                    strokeDasharray="4 3"
+                    opacity="0.9"
+                  />
                 )}
                 <circle
                   r="18"

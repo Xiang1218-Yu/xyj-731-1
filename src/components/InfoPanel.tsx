@@ -34,9 +34,15 @@ export function InfoPanel() {
   useEcosystemStore((s) => s.version);
   const engine = useEcosystemStore((s) => s.engine);
   const trackedId = useEcosystemStore((s) => s.trackedId);
+  const reviewIndex = useEcosystemStore((s) => s.reviewIndex);
   const setTrackedId = useEcosystemStore((s) => s.setTrackedId);
 
-  const creature = trackedId ? engine.creatures.find((c) => c.id === trackedId) : undefined;
+  // 回看模式优先读取历史快照中的个体数据，实时模式读取引擎活体
+  const creature = trackedId
+    ? reviewIndex !== null
+      ? engine.history.at(reviewIndex)?.creatures.find((c) => c.id === trackedId)
+      : engine.creatures.find((c) => c.id === trackedId)
+    : undefined;
 
   // 未追踪时展示引导提示
   if (!creature) {

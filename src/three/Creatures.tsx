@@ -12,6 +12,7 @@ import { CreatureMesh } from './CreatureMesh';
 export function Creatures() {
   const trackedId = useEcosystemStore((s) => s.trackedId);
   const highlightedSpecies = useEcosystemStore((s) => s.highlightedSpecies);
+  const reviewIndex = useEcosystemStore((s) => s.reviewIndex);
   const setTrackedId = useEcosystemStore((s) => s.setTrackedId);
   // 当前渲染的生物列表（实时=引擎活体，回看=历史快照拷贝）
   const [list, setList] = useState<Creature[]>([]);
@@ -43,7 +44,10 @@ export function Creatures() {
           highlight={
             c.id === trackedId ? 'tracked' : c.speciesId === highlightedSpecies ? 'species' : 'none'
           }
-          onSelect={() => setTrackedId(c.id)}
+          onSelect={() => {
+            // 回看模式下禁止进入追踪：历史快照中的个体不可交互
+            if (reviewIndex === null) setTrackedId(c.id);
+          }}
         />
       ))}
     </group>

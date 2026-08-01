@@ -14,7 +14,10 @@ export function SpeciesPanel() {
   // version 驱动数量徽标实时刷新
   useEcosystemStore((s) => s.version);
   const engine = useEcosystemStore((s) => s.engine);
+  const reviewIndex = useEcosystemStore((s) => s.reviewIndex);
   const addCreature = useEcosystemStore((s) => s.addCreature);
+  // 回看模式下禁止投放：历史状态不可被修改
+  const placementDisabled = reviewIndex !== null;
 
   /** 统计某物种当前存活数量 */
   const countOf = (speciesId: (typeof SPECIES_IDS)[number]): number =>
@@ -24,7 +27,9 @@ export function SpeciesPanel() {
     <aside className="glass-panel pointer-events-auto absolute left-4 top-20 z-10 flex max-h-[calc(100%-12rem)] w-52 flex-col overflow-hidden">
       <div className="border-b border-white/10 px-4 py-3">
         <h2 className="font-display text-sm font-bold text-teal-100">物种库</h2>
-        <p className="mt-0.5 text-[11px] text-teal-100/45">点击卡片投放到生态缸</p>
+        <p className="mt-0.5 text-[11px] text-teal-100/45">
+          {placementDisabled ? '回看模式下不可投放生物' : '点击卡片投放到生态缸'}
+        </p>
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-2">
         {LEVEL_ORDER.map((level) => (
@@ -45,7 +50,12 @@ export function SpeciesPanel() {
               return (
                 <button
                   key={sid}
-                  className="group mb-1 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-teal-400/10"
+                  disabled={placementDisabled}
+                  className={`group mb-1 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition ${
+                    placementDisabled
+                      ? 'cursor-not-allowed opacity-45'
+                      : 'hover:bg-teal-400/10'
+                  }`}
                   onClick={() => addCreature(sid)}
                 >
                   <span className="text-xl leading-none">{def.emoji}</span>

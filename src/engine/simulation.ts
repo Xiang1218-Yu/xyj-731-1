@@ -207,8 +207,8 @@ export class SimulationEngine {
     if (def.circadian === 'diurnal') {
       c.status = isNight ? 'sleeping' : 'active';
     } else if (def.circadian === 'nocturnal') {
-      // 夜行种在整个白天（含黄昏）休眠，夜晚活跃
-      c.status = isNight || phase === 'dawn' ? 'active' : 'sleeping';
+      // 夜行种：仅夜晚活跃；黎明/白天/黄昏均休眠（黎明是白天过渡期）
+      c.status = isNight ? 'active' : 'sleeping';
     } else {
       c.status = 'active';
     }
@@ -327,17 +327,18 @@ export class SimulationEngine {
     if (this.creatures.length >= MAX_CREATURES) return;
     // 小概率触发，避免同步爆炸式繁殖
     if (Math.random() > 0.006) return;
-    c.energy *= 0.5;
+    // 先尝试创建后代：达到总数上限时 spawnCreature 返回 null，
+    // 此时直接放弃繁殖，亲代不消耗能量
     const child = this.spawnCreature(c.speciesId);
-    if (child) {
-      // 后代出生在亲代附近
-      child.position = [
-        c.position[0] + (Math.random() - 0.5),
-        c.position[1] + (Math.random() - 0.5),
-        c.position[2] + (Math.random() - 0.5),
-      ];
-      this.lastEvent = `${def.name}繁殖了新个体`;
-    }
+    if (!child) return;
+    c.energy *= 0.5;
+    // 后代出生在亲代附近
+    child.position = [
+      c.position[0] + (Math.random() - 0.5),
+      c.position[1] + (Math.random() - 0.5),
+      c.position[2] + (Math.random() - 0.5),
+    ];
+    this.lastEvent = `${def.name}繁殖了新个体`;
   }
 
   /** 尸体处理：缓慢下沉，沉底后由主循环移除 */
@@ -347,7 +348,7 @@ export class SimulationEngine {
     c.position = [c.position[0], c.position[1] - 0.5 * dt, c.position[2]];
   }
 
-  /** 写入一条历史快照（深拷贝个体数组） */
+  /** 写入一条历史快照（structuredClone 完整深拷贝，嵌套属性不会丢失） */
   private writeSnapshot(): void {
     const counts: Partial<Record<SpeciesId, number>> = {};
     for (const sid of SPECIES_IDS) counts[sid] = 0;
@@ -360,11 +361,7 @@ export class SimulationEngine {
       phase: this.phase,
       dayProgress: this.dayProgress,
       counts,
-      creatures: this.creatures.map((c) => ({
-        ...c,
-        position: [...c.position] as Vec3,
-        velocity: [...c.velocity] as Vec3,
-      })),
+      creatures: structuredClone(this.creatures),
     };
     this.history.push(snapshot);
   }

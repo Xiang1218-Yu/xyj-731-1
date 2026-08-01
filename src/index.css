@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== 全局设计变量：自然科学实验室 × 水族馆观察窗 ===== */
+:root {
+  --bg-deep: #06232b;
+  --accent-teal: #3ee6c4;
+  --accent-sun: #ffb454;
+  --accent-moon: #7fa8ff;
+
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+/* 标题字体：教科书衬线感 */
+.font-display {
+  font-family: "Songti SC", "Noto Serif SC", "SimSun", serif;
+  letter-spacing: 0.04em;
+}
+
+/* 玻璃拟态面板 */
+.glass-panel {
+  background: linear-gradient(145deg, rgba(13, 52, 63, 0.72), rgba(6, 35, 43, 0.62));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(62, 230, 196, 0.14);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* 细滚动条 */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(62, 230, 196, 0.25);
+  border-radius: 3px;
+}
+
+/* ===== 时间轴滑块样式 ===== */
+.timeline-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(62, 230, 196, 0.35), rgba(127, 168, 255, 0.35));
+  outline: none;
+  cursor: pointer;
+}
+.timeline-slider:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-teal);
+  border: 2px solid #06232b;
+  box-shadow: 0 0 10px rgba(62, 230, 196, 0.6);
+}
+.timeline-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-teal);
+  border: 2px solid #06232b;
+  box-shadow: 0 0 10px rgba(62, 230, 196, 0.6);
+}

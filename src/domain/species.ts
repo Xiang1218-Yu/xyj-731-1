@@ -1,0 +1,220 @@
+import type { Species, SpeciesId } from './types';
+
+/**
+ * 物种目录
+ * 说明：集中定义所有可用物种模板。捕食关系通过 preyOf（食物来源）表达，
+ * 食物网可由此反推出完整的捕食/被捕食边。
+ */
+export const SPECIES_CATALOG: Record<SpeciesId, Species> = {
+  // ============ 生产者 ============
+  waterweed: {
+    id: 'waterweed',
+    name: '水草',
+    icon: '🌿',
+    role: 'producer',
+    chronotype: 'diurnal',
+    color: '#3fa34d',
+    size: 0.7,
+    baseSpeed: 0, // 生产者固着不动
+    preyOf: [],
+    initialEnergy: 40,
+    metabolism: 0.2,
+    photosynthesis: 3.0,
+    reproduceThreshold: 90,
+    glowsAtNight: false,
+    description: '淡水常见沉水植物，白天通过光合作用产出能量，是食物链的基础。',
+  },
+  algae: {
+    id: 'algae',
+    name: '浮游藻类',
+    icon: '🟢',
+    role: 'producer',
+    chronotype: 'diurnal',
+    color: '#7cb342',
+    size: 0.35,
+    baseSpeed: 0.05,
+    preyOf: [],
+    initialEnergy: 20,
+    metabolism: 0.15,
+    photosynthesis: 2.2,
+    reproduceThreshold: 45,
+    glowsAtNight: false,
+    description: '微小的浮游植物，繁殖极快，是滤食动物的主要食物。污染水域会异常暴发。',
+  },
+  rainforestPlant: {
+    id: 'rainforestPlant',
+    name: '雨林蕨类',
+    icon: '🌱',
+    role: 'producer',
+    chronotype: 'diurnal',
+    color: '#2e7d32',
+    size: 0.8,
+    baseSpeed: 0,
+    preyOf: [],
+    initialEnergy: 50,
+    metabolism: 0.25,
+    photosynthesis: 3.5,
+    reproduceThreshold: 110,
+    glowsAtNight: false,
+    description: '热带雨林底层植物，喜阴湿，为昆虫和小型动物提供食物与栖息地。',
+  },
+
+  // ============ 初级消费者（食草/滤食） ============
+  waterflea: {
+    id: 'waterflea',
+    name: '水蚤',
+    icon: '🦐',
+    role: 'herbivore',
+    chronotype: 'cathemeral',
+    color: '#ff8f00',
+    size: 0.25,
+    baseSpeed: 0.8,
+    preyOf: ['algae'],
+    initialEnergy: 18,
+    metabolism: 0.6,
+    photosynthesis: 0,
+    reproduceThreshold: 40,
+    glowsAtNight: false,
+    description: '微型甲壳动物，滤食浮游藻类，又是小鱼的重要饵料。',
+  },
+  snail: {
+    id: 'snail',
+    name: '螺',
+    icon: '🐌',
+    role: 'herbivore',
+    chronotype: 'nocturnal',
+    color: '#8d6e63',
+    size: 0.4,
+    baseSpeed: 0.3,
+    preyOf: ['waterweed', 'algae'],
+    initialEnergy: 30,
+    metabolism: 0.4,
+    photosynthesis: 0,
+    reproduceThreshold: 70,
+    glowsAtNight: false,
+    nightBehavior: '夜行性：夜晚外出活跃觅食、爬行加速，白天则收缩躲藏休息。',
+    description: '啃食水草与藻类，夜行性，帮助清理生态缸壁上的附着藻。',
+  },
+  caterpillar: {
+    id: 'caterpillar',
+    name: '毛虫',
+    icon: '🐛',
+    role: 'herbivore',
+    chronotype: 'diurnal',
+    color: '#9ccc65',
+    size: 0.3,
+    baseSpeed: 0.4,
+    preyOf: ['rainforestPlant'],
+    initialEnergy: 22,
+    metabolism: 0.5,
+    photosynthesis: 0,
+    reproduceThreshold: 50,
+    glowsAtNight: false,
+    description: '取食雨林植物叶片，是青蛙和鸟类的食物。',
+  },
+
+  // ============ 次级消费者 ============
+  smallfish: {
+    id: 'smallfish',
+    name: '小鱼',
+    icon: '🐟',
+    role: 'carnivore',
+    chronotype: 'diurnal',
+    color: '#42a5f5',
+    size: 0.5,
+    baseSpeed: 1.4,
+    preyOf: ['waterflea', 'snail'],
+    initialEnergy: 45,
+    metabolism: 0.9,
+    photosynthesis: 0,
+    reproduceThreshold: 95,
+    glowsAtNight: false,
+    description: '以水蚤和小型无脊椎动物为食，白天活跃，夜晚休眠减速。',
+  },
+  frog: {
+    id: 'frog',
+    name: '树蛙',
+    icon: '🐸',
+    role: 'carnivore',
+    chronotype: 'nocturnal',
+    color: '#66bb6a',
+    size: 0.55,
+    baseSpeed: 1.1,
+    preyOf: ['caterpillar', 'waterflea'],
+    initialEnergy: 50,
+    metabolism: 0.85,
+    photosynthesis: 0,
+    reproduceThreshold: 100,
+    glowsAtNight: true,
+    nightBehavior: '夜行性：夜晚眼部反光、皮肤微微荧光，游动加速、鸣叫求偶并积极捕食昆虫。',
+    description: '雨林夜行性捕食者，捕食昆虫，夜晚更加活跃。',
+  },
+  firefly: {
+    id: 'firefly',
+    name: '萤火虫',
+    icon: '✨',
+    role: 'omnivore',
+    chronotype: 'nocturnal',
+    color: '#fff176',
+    size: 0.22,
+    baseSpeed: 0.9,
+    preyOf: ['algae', 'caterpillar'],
+    initialEnergy: 16,
+    metabolism: 0.45,
+    photosynthesis: 0,
+    reproduceThreshold: 38,
+    glowsAtNight: true,
+    nightBehavior: '夜行性：夜晚尾部发出明亮荧光用于求偶，飞行速度加快，是夜景亮点。',
+    description: '夜行性发光昆虫，夜晚尾部发出荧光用于求偶，是雨林夜景的亮点。',
+  },
+
+  // ============ 高级消费者 ============
+  bigfish: {
+    id: 'bigfish',
+    name: '大鱼',
+    icon: '🐠',
+    role: 'carnivore',
+    chronotype: 'diurnal',
+    color: '#ef5350',
+    size: 0.85,
+    baseSpeed: 1.6,
+    preyOf: ['smallfish', 'frog'],
+    initialEnergy: 80,
+    metabolism: 1.3,
+    photosynthesis: 0,
+    reproduceThreshold: 160,
+    glowsAtNight: false,
+    description: '生态缸顶级捕食者，捕食小鱼，控制着整个食物链的平衡。',
+  },
+
+  // ============ 分解者 / 耐污生物 ============
+  bacteria: {
+    id: 'bacteria',
+    name: '分解菌群',
+    icon: '🦠',
+    role: 'decomposer',
+    chronotype: 'cathemeral',
+    color: '#a1887f',
+    size: 0.2,
+    baseSpeed: 0.1,
+    preyOf: [],
+    initialEnergy: 25,
+    metabolism: 0.2,
+    photosynthesis: 1.0, // 以化能/腐屑方式缓慢获取能量
+    reproduceThreshold: 45,
+    glowsAtNight: false,
+    description: '分解有机残渣，在污染水域中大量繁殖，是水体自净的关键。',
+  },
+};
+
+/** 所有物种 ID 列表 */
+export const ALL_SPECIES_IDS: SpeciesId[] = Object.keys(SPECIES_CATALOG);
+
+/** 根据 ID 获取物种模板（保证类型安全） */
+export function getSpecies(id: SpeciesId): Species {
+  const species = SPECIES_CATALOG[id];
+  if (!species) {
+    throw new Error(`未知物种: ${id}`);
+  }
+  return species;
+}

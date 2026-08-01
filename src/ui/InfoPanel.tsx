@@ -95,6 +95,9 @@ export function InfoPanel(): JSX.Element | null {
         </div>
       </div>
       <p className="species-desc-text">{species.description}</p>
+      {species.nightBehavior && (
+        <p className="night-behavior-text">🌙 夜间习性：{species.nightBehavior}</p>
+      )}
       <button className="btn" onClick={() => trackOrganism(null)}>
         结束追踪
       </button>

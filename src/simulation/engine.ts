@@ -2,6 +2,7 @@ import type {
   DayPhase,
   EcosystemSnapshot,
   Organism,
+  PredationEvent,
   ScenePreset,
   Species,
   SpeciesId,
@@ -35,11 +36,26 @@ export interface EcosystemState {
   pollution: number;
 }
 
+/** step 推进的结果：新状态 + 本步内发生的捕食事件 */
+export interface StepResult {
+  /** 推进后的新状态 */
+  state: EcosystemState;
+  /** 本时间步内新发生的捕食事件 */
+  events: PredationEvent[];
+}
+
 let idCounter = 0;
 /** 生成全局唯一个体 ID */
 function nextId(): string {
   idCounter += 1;
   return `org-${idCounter}`;
+}
+
+let eventCounter = 0;
+/** 生成全局唯一捕食事件 ID */
+function nextEventId(): number {
+  eventCounter += 1;
+  return eventCounter;
 }
 
 /** 生成缸体内的随机位置 */
@@ -123,6 +139,19 @@ function shouldSleep(species: Species, phase: DayPhase): boolean {
   return false;
 }
 
+/**
+ * 计算某物种在给定阶段的活跃度系数（用于游动速度）。
+ * - 夜行性生物夜晚更活跃（>1，游动加速），白天休眠（在别处减速）
+ * - 昼行性生物白天正常
+ * - 全天性维持 1
+ */
+function activityFactor(species: Species, phase: DayPhase): number {
+  if (species.chronotype === 'nocturnal') {
+    return phase === 'night' ? 1.5 : 1; // 夜晚加速觅食
+  }
+  return 1;
+}
+
 /** 将位置限制在缸体内，并在触壁时反弹速度 */
 function boundPosition(org: Organism): void {
   (['x', 'y', 'z'] as const).forEach((axis) => {
@@ -168,10 +197,11 @@ function findNearestPrey(
  * 该函数会原地修改并返回新的组织数组，遵循以下顺序：
  * 1. 计算昼夜与光照
  * 2. 逐个更新生物：代谢、休眠、觅食移动、光合作用
- * 3. 处理捕食
+ * 3. 处理捕食（记录捕食事件）
  * 4. 处理繁殖与死亡
+ * 返回新状态与本步内发生的捕食事件列表。
  */
-export function step(state: EcosystemState, dt: number): EcosystemState {
+export function step(state: EcosystemState, dt: number): StepResult {
   const time = state.time + dt;
   const clock = computeClock(time);
   const phase = computePhase(clock);
@@ -204,9 +234,9 @@ export function step(state: EcosystemState, dt: number): EcosystemState {
       org.energy += species.photosynthesis * light * pollutionFactor * dt;
     }
 
-    // 运动：休眠时游动减速，否则朝猎物或随机游走
+    // 运动：休眠时游动减速，夜行性夜晚加速，否则朝猎物或随机游走
     if (species.baseSpeed > 0) {
-      const speedFactor = org.asleep ? 0.2 : 1;
+      const speedFactor = org.asleep ? 0.2 : activityFactor(species, phase);
       let desired: Vec3 = org.velocity;
       const preyIdx = findNearestPrey(org, species, organisms);
       if (preyIdx >= 0 && !org.asleep) {
@@ -233,6 +263,7 @@ export function step(state: EcosystemState, dt: number): EcosystemState {
   }
 
   // ---- 阶段二：捕食 ----
+  const events: PredationEvent[] = [];
   for (const hunter of organisms) {
     if (!hunter.alive || hunter.asleep) continue;
     const species = SPECIES_CATALOG[hunter.speciesId];
@@ -246,6 +277,14 @@ export function step(state: EcosystemState, dt: number): EcosystemState {
         target.alive = false;
         // 能量按被捕食者剩余能量的一部分转移（生态学 ~10% 传递率的放大版）
         hunter.energy += Math.max(target.energy * 0.6, 8);
+        // 记录捕食事件，供事件日志展示
+        events.push({
+          id: nextEventId(),
+          time,
+          clock,
+          predator: hunter.speciesId,
+          prey: target.speciesId,
+        });
         break; // 每步每个捕食者只吃一次
       }
     }
@@ -254,6 +293,9 @@ export function step(state: EcosystemState, dt: number): EcosystemState {
   // ---- 阶段三：繁殖与死亡 ----
   const offspring: Organism[] = [];
   const speciesCount = countBySpecies(organisms);
+  // 按物种分别统计本步已新增的后代数量，确保上限校验精确到每个物种，
+  // 避免用全体后代总数（offspring.length）误判单一物种上限而导致数量失控。
+  const offspringCount: Record<SpeciesId, number> = {};
   for (const org of organisms) {
     if (!org.alive) continue;
     const species = SPECIES_CATALOG[org.speciesId];
@@ -265,11 +307,13 @@ export function step(state: EcosystemState, dt: number): EcosystemState {
       continue;
     }
 
-    // 繁殖：能量超阈值、冷却完毕、未超数量上限
+    // 繁殖：能量超阈值、冷却完毕、且该物种（存活数 + 本步已生后代）未达上限
+    const currentSpeciesTotal =
+      (speciesCount[org.speciesId] ?? 0) + (offspringCount[org.speciesId] ?? 0);
     if (
       org.energy >= species.reproduceThreshold &&
       org.reproduceCooldown <= 0 &&
-      (speciesCount[org.speciesId] ?? 0) + offspring.length < MAX_PER_SPECIES
+      currentSpeciesTotal < MAX_PER_SPECIES
     ) {
       org.energy *= 0.5; // 能量对半分给后代
       org.reproduceCooldown = 6 + Math.random() * 4;
@@ -277,6 +321,7 @@ export function step(state: EcosystemState, dt: number): EcosystemState {
       const child = createOrganism(org.speciesId, childPos);
       child.energy = org.energy;
       offspring.push(child);
+      offspringCount[org.speciesId] = (offspringCount[org.speciesId] ?? 0) + 1;
     }
   }
 
@@ -285,9 +330,12 @@ export function step(state: EcosystemState, dt: number): EcosystemState {
   const nextOrganisms = survivors.concat(offspring);
 
   return {
-    organisms: nextOrganisms,
-    time,
-    pollution: state.pollution,
+    state: {
+      organisms: nextOrganisms,
+      time,
+      pollution: state.pollution,
+    },
+    events,
   };
 }
 

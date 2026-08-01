@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   EcosystemSnapshot,
   Organism,
+  PredationEvent,
   SpeciesId,
 } from '../domain/types';
 import { SCENE_PRESETS, getScene } from '../domain/presets';
@@ -16,6 +17,9 @@ import {
   step,
   type EcosystemState,
 } from '../simulation/engine';
+
+/** 捕食事件日志最大保留条数 */
+const MAX_EVENTS = 200;
 
 /**
  * 全局应用状态（Zustand）。
@@ -35,6 +39,8 @@ interface AppState {
   history: EcosystemSnapshot[];
   /** 自上次采样以来累计的时间 */
   sinceLastSnapshot: number;
+  /** 捕食事件日志（最新的在数组末尾） */
+  events: PredationEvent[];
   /**
    * 回看索引：null 表示跟随实时；否则指向 history 中的某一帧。
    * 处于回看模式时不推进模拟。
@@ -76,6 +82,7 @@ export const useStore = create<AppState>((set, get) => ({
   speed: 1,
   history: [],
   sinceLastSnapshot: 0,
+  events: [],
   reviewIndex: null,
   trackedId: null,
   highlightedSpecies: null,
@@ -86,7 +93,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!state.running || state.reviewIndex !== null) return;
 
     const scaledDt = dt * state.speed;
-    const nextSim = step(state.sim, scaledDt);
+    const { state: nextSim, events: newEvents } = step(state.sim, scaledDt);
 
     // 快照采样
     let sinceLast = state.sinceLastSnapshot + scaledDt;
@@ -101,6 +108,15 @@ export const useStore = create<AppState>((set, get) => ({
       }
     }
 
+    // 追加捕食事件日志（滚动保留最近若干条）
+    let events = state.events;
+    if (newEvents.length > 0) {
+      events = state.events.concat(newEvents);
+      if (events.length > MAX_EVENTS) {
+        events = events.slice(events.length - MAX_EVENTS);
+      }
+    }
+
     // 若被追踪个体已死亡/消失，则自动结束追踪
     let trackedId = state.trackedId;
     if (trackedId !== null) {
@@ -110,7 +126,7 @@ export const useStore = create<AppState>((set, get) => ({
       if (!stillAlive) trackedId = null;
     }
 
-    set({ sim: nextSim, sinceLastSnapshot: sinceLast, history, trackedId });
+    set({ sim: nextSim, sinceLastSnapshot: sinceLast, history, events, trackedId });
   },
 
   loadScene: (sceneId: string) => {
@@ -120,6 +136,7 @@ export const useStore = create<AppState>((set, get) => ({
       sceneId,
       history: [],
       sinceLastSnapshot: 0,
+      events: [],
       reviewIndex: null,
       trackedId: null,
       highlightedSpecies: null,
@@ -152,8 +169,16 @@ export const useStore = create<AppState>((set, get) => ({
       set({ reviewIndex: null });
       return;
     }
+    // 将索引夹紧到当前历史的有效范围，避免历史滚动裁剪后越界，
+    // 造成回看崩溃或显示错误数据。历史为空时直接忽略。
+    const { history } = get();
+    if (history.length === 0) {
+      set({ reviewIndex: null });
+      return;
+    }
+    const clamped = Math.max(0, Math.min(index, history.length - 1));
     // 进入回看即暂停模拟
-    set({ reviewIndex: index, running: false });
+    set({ reviewIndex: clamped, running: false });
   },
 
   resumeLive: () => set({ reviewIndex: null, running: true }),

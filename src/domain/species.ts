@@ -92,6 +92,7 @@ export const SPECIES_CATALOG: Record<SpeciesId, Species> = {
     photosynthesis: 0,
     reproduceThreshold: 70,
     glowsAtNight: false,
+    nightBehavior: '夜行性：夜晚外出活跃觅食、爬行加速，白天则收缩躲藏休息。',
     description: '啃食水草与藻类，夜行性，帮助清理生态缸壁上的附着藻。',
   },
   caterpillar: {
@@ -144,7 +145,8 @@ export const SPECIES_CATALOG: Record<SpeciesId, Species> = {
     metabolism: 0.85,
     photosynthesis: 0,
     reproduceThreshold: 100,
-    glowsAtNight: false,
+    glowsAtNight: true,
+    nightBehavior: '夜行性：夜晚眼部反光、皮肤微微荧光，游动加速、鸣叫求偶并积极捕食昆虫。',
     description: '雨林夜行性捕食者，捕食昆虫，夜晚更加活跃。',
   },
   firefly: {
@@ -162,6 +164,7 @@ export const SPECIES_CATALOG: Record<SpeciesId, Species> = {
     photosynthesis: 0,
     reproduceThreshold: 38,
     glowsAtNight: true,
+    nightBehavior: '夜行性：夜晚尾部发出明亮荧光用于求偶，飞行速度加快，是夜景亮点。',
     description: '夜行性发光昆虫，夜晚尾部发出荧光用于求偶，是雨林夜景的亮点。',
   },
 

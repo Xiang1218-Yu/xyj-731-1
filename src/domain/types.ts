@@ -60,6 +60,11 @@ export interface Species {
   reproduceThreshold: number;
   /** 夜晚是否发光（如萤火虫、发光水母） */
   glowsAtNight: boolean;
+  /**
+   * 夜晚特有行为描述。用于信息面板科普展示。
+   * 夜行性物种夜间会呈现该行为（如发光、加速、活跃觅食）。
+   */
+  nightBehavior?: string;
   /** 简短的科普描述 */
   description: string;
 }
@@ -110,6 +115,23 @@ export interface EcosystemSnapshot {
 /** 食物网中的一条捕食关系边：predator 捕食 prey */
 export interface FoodWebEdge {
   predator: SpeciesId;
+  prey: SpeciesId;
+}
+
+/**
+ * 捕食事件记录：某捕食者在某时刻吃掉某猎物。
+ * 用于「捕食事件日志」的实时展示。
+ */
+export interface PredationEvent {
+  /** 事件唯一 ID */
+  id: number;
+  /** 发生时刻（模拟秒） */
+  time: number;
+  /** 归一化时钟 [0,1) */
+  clock: number;
+  /** 捕食者物种 ID */
+  predator: SpeciesId;
+  /** 猎物物种 ID */
   prey: SpeciesId;
 }
 

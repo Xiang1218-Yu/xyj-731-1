@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
 import type { Organism } from '../domain/types';
 import { getSpecies } from '../domain/species';
 import type { DayPhase } from '../domain/types';
@@ -13,10 +14,10 @@ interface OrganismMeshProps {
 
 /**
  * 单个生物的渲染体。
- * - 生产者渲染为暗绿色簇团，其余为球体
- * - 被追踪的生物显示环绕光环
- * - 夜行发光物种在夜晚发出自发光
- * - 休眠个体降低亮度并显示 "z" 提示（通过缩放脉冲省略，改用透明度）
+ * - 被追踪的生物显示醒目的双层旋转光环并放大高亮
+ * - glowsAtNight 物种夜晚强烈自发光并投射点光源
+ * - 其他夜行性物种夜晚以柔和自发光呈现“夜间活跃”状态
+ * - 休眠个体降低亮度
  */
 export function OrganismMesh({ organism, phase }: OrganismMeshProps): JSX.Element {
   const species = getSpecies(organism.speciesId);
@@ -27,19 +28,44 @@ export function OrganismMesh({ organism, phase }: OrganismMeshProps): JSX.Elemen
   const isTracked = trackedId === organism.id;
   const isSpeciesHighlighted = highlightedSpecies === organism.speciesId;
 
-  // 夜晚发光：夜行发光物种在夜晚点亮
-  const glowing = species.glowsAtNight && phase === 'night' && !organism.asleep;
+  // 夜行性物种夜晚的行为表现
+  const isNocturnal = species.chronotype === 'nocturnal';
+  const nightActive = isNocturnal && phase === 'night' && !organism.asleep;
+  // 强发光物种（萤火虫、树蛙）
+  const strongGlow = species.glowsAtNight && phase === 'night' && !organism.asleep;
+  // 其他夜行性物种（如螺）夜晚的柔和活跃光
+  const softNightGlow = nightActive && !species.glowsAtNight;
 
-  // 自发光强度
-  const emissiveIntensity = glowing ? 1.6 : isSpeciesHighlighted ? 0.6 : 0;
+  // 自发光强度：强发光 > 追踪 > 物种高亮 > 夜间柔光 > 无
+  const emissiveIntensity = strongGlow
+    ? 1.8
+    : isTracked
+      ? 1.2
+      : isSpeciesHighlighted
+        ? 0.8
+        : softNightGlow
+          ? 0.5
+          : 0;
 
   // 休眠个体略微变暗
-  const opacity = organism.asleep ? 0.55 : 1;
+  const opacity = organism.asleep ? 0.5 : 1;
 
   const emissiveColor = useMemo(
-    () => new THREE.Color(glowing ? species.color : '#ffffff'),
-    [glowing, species.color],
+    () =>
+      new THREE.Color(
+        strongGlow || softNightGlow ? species.color : isTracked ? '#ffd54f' : '#ffffff',
+      ),
+    [strongGlow, softNightGlow, isTracked, species.color],
   );
+
+  // 追踪光环旋转动画
+  const haloRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (haloRef.current) {
+      haloRef.current.rotation.y += delta * 1.5;
+      haloRef.current.rotation.z += delta * 0.8;
+    }
+  });
 
   const pos: [number, number, number] = [
     organism.position.x,
@@ -47,10 +73,32 @@ export function OrganismMesh({ organism, phase }: OrganismMeshProps): JSX.Elemen
     organism.position.z,
   ];
 
+  // 被追踪时整体放大，更易辨认
+  const bodyScale = isTracked ? 1.25 : 1;
+
   return (
     <group position={pos}>
-      {/* 主体 */}
+      {/* 不可见的放大点击热区，提升小型生物的可选中性 */}
       <mesh
+        onClick={(e) => {
+          e.stopPropagation();
+          trackOrganism(organism.id);
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = 'auto';
+        }}
+      >
+        <sphereGeometry args={[Math.max(species.size * 1.8, 0.6), 12, 12]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
+      {/* 主体（放大便于观察被追踪个体） */}
+      <mesh
+        scale={bodyScale}
         onClick={(e) => {
           e.stopPropagation();
           trackOrganism(organism.id);
@@ -67,20 +115,42 @@ export function OrganismMesh({ organism, phase }: OrganismMeshProps): JSX.Elemen
         />
       </mesh>
 
-      {/* 追踪光环：围绕生物的发光圆环 */}
+      {/* 追踪高亮：双层旋转光环 + 半透明光晕球 */}
       {isTracked && (
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[species.size + 0.5, 0.08, 12, 40]} />
-          <meshStandardMaterial
-            color="#ffd54f"
-            emissive="#ffd54f"
-            emissiveIntensity={2}
-          />
-        </mesh>
+        <>
+          <group ref={haloRef}>
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[species.size + 0.6, 0.09, 12, 48]} />
+              <meshStandardMaterial
+                color="#ffd54f"
+                emissive="#ffd54f"
+                emissiveIntensity={2.5}
+              />
+            </mesh>
+            <mesh rotation={[0, 0, Math.PI / 2]}>
+              <torusGeometry args={[species.size + 0.6, 0.06, 12, 48]} />
+              <meshStandardMaterial
+                color="#ffe082"
+                emissive="#ffe082"
+                emissiveIntensity={2}
+              />
+            </mesh>
+          </group>
+          {/* 柔和光晕 */}
+          <mesh>
+            <sphereGeometry args={[species.size + 0.9, 20, 20]} />
+            <meshBasicMaterial
+              color="#ffd54f"
+              transparent
+              opacity={0.12}
+              depthWrite={false}
+            />
+          </mesh>
+        </>
       )}
 
-      {/* 发光物种在夜晚附加一个柔和点光源，照亮周围水体 */}
-      {glowing && <pointLight color={species.color} intensity={1.2} distance={3} />}
+      {/* 强发光物种在夜晚附加点光源，照亮周围水体 */}
+      {strongGlow && <pointLight color={species.color} intensity={1.4} distance={3.2} />}
     </group>
   );
 }

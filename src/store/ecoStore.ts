@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { SPECIES } from '@/simulation/species';
 import { getPreset, DEFAULT_PRESET_ID, PRESETS } from '@/simulation/presets';
 import {
+  computeEnvironment,
   countPopulations,
   createCreature,
   initialEnvironment,
@@ -288,12 +289,16 @@ export const useEcoStore = create<EcoState>((set, get) => ({
     const state = get();
     if (!state.playing || state.viewingIndex !== null) return;
 
-    // 以固定逻辑步长推进，保证模拟稳定
-    let remaining = realDt * state.speed;
+    // 每一帧都连续推进模拟时间（保证时钟/昼夜/光照平滑刷新），
+    // 而生物/食物链逻辑仍按 FIXED_DT 固定步长推进，保证模拟稳定。
+    const frameSimDt = realDt * state.speed;
+    const newSimTime = state.simTime + frameSimDt;
+
+    // 以固定逻辑步长推进生物逻辑
+    let remaining = frameSimDt;
     let creatures = state.creatures;
     let env = state.env;
     let tick = state.tick;
-    let simTime = state.simTime;
     const maxSteps = 6;
     let steps = 0;
 
@@ -307,21 +312,21 @@ export const useEcoStore = create<EcoState>((set, get) => ({
       creatures = result.creatures;
       env = result.env;
       tick += 1;
-      simTime += SIM.FIXED_DT;
       remaining -= SIM.FIXED_DT;
       steps += 1;
     }
 
-    // 若步数被截断（后台切回等），仍把剩余时间折算为 env 推进，避免时间轴错乱
-    if (remaining > 0 && steps === maxSteps) {
-      simTime += remaining;
-    }
+    // 用连续的 simTime 重新计算环境，使光照/水色/时钟在固定步长之间也能平滑变化
+    const dayCount = Math.floor(newSimTime / SIM.DAY_LENGTH) + 1;
+    const timeOfDay = (newSimTime % SIM.DAY_LENGTH) / SIM.DAY_LENGTH;
+    env = computeEnvironment(timeOfDay, dayCount, env.pollution);
 
-    snapshotAccumulator += realDt * state.speed;
+    // 按固定间隔记录历史快照（使用连续的 simTime）
+    snapshotAccumulator += frameSimDt;
     let snapshots = state.snapshots;
     if (snapshotAccumulator >= SIM.SNAPSHOT_INTERVAL) {
       snapshotAccumulator = 0;
-      const newSnap = takeSnapshot(creatures, env, tick, simTime);
+      const newSnap = takeSnapshot(creatures, env, tick, newSimTime);
       snapshots = [...snapshots, newSnap];
       if (snapshots.length > SIM.MAX_SNAPSHOTS) {
         snapshots = snapshots.slice(snapshots.length - SIM.MAX_SNAPSHOTS);
@@ -332,7 +337,7 @@ export const useEcoStore = create<EcoState>((set, get) => ({
       creatures,
       env,
       tick,
-      simTime,
+      simTime: newSimTime,
       populations: countPopulations(creatures),
       snapshots,
     });

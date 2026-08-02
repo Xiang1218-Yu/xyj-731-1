@@ -1,15 +1,16 @@
 .tracking-panel {
   position: absolute;
-  right: 12px;
-  bottom: 180px;
-  width: 300px;
+  left: 12px;
+  bottom: 80px;
+  width: 240px;
+  max-height: 45vh;
+  overflow-y: auto;
   background: rgba(15, 20, 25, 0.95);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(0, 255, 255, 0.3);
   border-radius: 12px;
   z-index: 60;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 255, 0.1);
-  overflow: hidden;
 }
 
 .tracking-header {

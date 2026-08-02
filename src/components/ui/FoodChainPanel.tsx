@@ -7,7 +7,7 @@ import './FoodChainPanel.css';
 
 // ============================================================
 // 食物链面板：以营养级分层展示食物网，含SVG连线
-// 点击节点高亮对应物种，悬停显示捕食/被捕食关系
+// 连线始终可见，悬停/选中时高亮相关路径
 // ============================================================
 
 const TROPHIC_LABELS: Record<TrophicLevel, string> = {
@@ -29,6 +29,8 @@ const TROPHIC_ORDER: TrophicLevel[] = [
 interface NodePosition {
   x: number;
   y: number;
+  w: number;
+  h: number;
 }
 
 interface EdgeData {
@@ -52,7 +54,7 @@ export default function FoodChainPanel() {
   const [positions, setPositions] = useState<Record<string, NodePosition>>({});
   const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
 
-  // 当前缸中存在的物种（memoized 以避免无限渲染循环）
+  // 当前缸中存在的物种
   const presentSpeciesIds = useMemo(() => {
     const ids = new Set<string>();
     organisms.forEach(o => {
@@ -69,7 +71,6 @@ export default function FoodChainPanel() {
     [presentSpeciesIds]
   );
 
-  // 同步到 ref，使 measurePositions 回调保持稳定
   presentSpeciesRef.current = presentSpecies;
 
   // 按营养级分组
@@ -83,7 +84,7 @@ export default function FoodChainPanel() {
     [presentSpecies]
   );
 
-  // 计算食物网边（捕食关系）
+  // 计算食物网边
   const edges = useMemo<EdgeData[]>(() => {
     const result: EdgeData[] = [];
     const activeId = hoveredSpeciesId ?? highlightedSpeciesId;
@@ -100,7 +101,7 @@ export default function FoodChainPanel() {
     return result;
   }, [presentSpecies, presentSpeciesIds, hoveredSpeciesId, highlightedSpeciesId]);
 
-  // 测量节点位置，用于绘制SVG连线（使用ref保持回调稳定）
+  // 测量节点位置（含宽高，用于连线端点计算）
   const measurePositions = useCallback(() => {
     if (!containerRef.current) return;
     const containerRect = containerRef.current.getBoundingClientRect();
@@ -111,7 +112,9 @@ export default function FoodChainPanel() {
         const rect = el.getBoundingClientRect();
         newPositions[species.id] = {
           x: rect.left - containerRect.left + rect.width / 2,
-          y: rect.top - containerRect.top + rect.height / 2
+          y: rect.top - containerRect.top + rect.height / 2,
+          w: rect.width,
+          h: rect.height
         };
       }
     }
@@ -119,18 +122,22 @@ export default function FoodChainPanel() {
     setSvgSize({ width: containerRect.width, height: containerRect.height });
   }, []);
 
-  // 仅在物种集合变化或折叠状态切换时重新测量
   const speciesKey = presentSpecies.map(s => s.id).sort().join(',');
   useLayoutEffect(() => {
-    const raf = requestAnimationFrame(() => measurePositions());
+    // 双重 rAF 确保 DOM 完全布局后再测量
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => measurePositions());
+    });
     window.addEventListener('resize', measurePositions);
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
       window.removeEventListener('resize', measurePositions);
     };
   }, [speciesKey, collapsed, measurePositions]);
 
-  // 计算每个物种的捕食关系
+  // 计算捕食关系
   const getRelations = (speciesId: string) => {
     const species = SPECIES[speciesId];
     if (!species) return { predators: [] as string[], prey: [] as string[] };
@@ -182,49 +189,60 @@ export default function FoodChainPanel() {
             <div className="empty-hint">生态缸中暂无生物</div>
           ) : (
             <div className="foodchain-container" ref={containerRef}>
-              {/* SVG 连线层 */}
+              {/* SVG 连线层 —— 始终绘制食物网箭头 */}
               <svg
                 className="foodchain-svg"
                 width={svgSize.width}
                 height={svgSize.height}
               >
                 <defs>
+                  {/* 默认箭头（青绿色，始终可见） */}
                   <marker
-                    id="arrowhead"
-                    markerWidth="8"
-                    markerHeight="6"
-                    refX="7"
-                    refY="3"
+                    id="arrow-default"
+                    markerWidth="10"
+                    markerHeight="8"
+                    refX="9"
+                    refY="4"
                     orient="auto"
                   >
-                    <polygon points="0 0, 8 3, 0 6" fill="rgba(255,255,255,0.3)" />
+                    <polygon points="0 0, 10 4, 0 8" fill="#4dd0e1" />
                   </marker>
+                  {/* 高亮箭头（金黄色） */}
                   <marker
-                    id="arrowhead-active"
-                    markerWidth="8"
-                    markerHeight="6"
-                    refX="7"
-                    refY="3"
+                    id="arrow-active"
+                    markerWidth="10"
+                    markerHeight="8"
+                    refX="9"
+                    refY="4"
                     orient="auto"
                   >
-                    <polygon points="0 0, 8 3, 0 6" fill="#ffc107" />
+                    <polygon points="0 0, 10 4, 0 8" fill="#ffc107" />
                   </marker>
                 </defs>
                 {edges.map((edge, i) => {
                   const from = positions[edge.from];
                   const to = positions[edge.to];
                   if (!from || !to) return null;
-                  const midY = (from.y + to.y) / 2;
-                  const path = `M ${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}`;
+
+                  // 从猎物节点底边到捕食者节点顶边
+                  const startX = from.x;
+                  const startY = from.y + from.h / 2;
+                  const endX = to.x;
+                  const endY = to.y - to.h / 2;
+                  const midY = (startY + endY) / 2;
+                  const path = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
+
+                  const dimmed = activeId !== null && !edge.active;
+
                   return (
                     <path
                       key={`edge-${i}`}
                       d={path}
                       fill="none"
-                      stroke={edge.active ? '#ffc107' : 'rgba(255,255,255,0.2)'}
-                      strokeWidth={edge.active ? 2 : 1}
-                      strokeOpacity={edge.active ? 0.9 : activeId ? 0.1 : 0.35}
-                      markerEnd={edge.active ? 'url(#arrowhead-active)' : 'url(#arrowhead)'}
+                      stroke={edge.active ? '#ffc107' : '#4dd0e1'}
+                      strokeWidth={edge.active ? 2 : 1.3}
+                      strokeOpacity={dimmed ? 0.12 : edge.active ? 0.95 : 0.55}
+                      markerEnd={edge.active ? 'url(#arrow-active)' : 'url(#arrow-default)'}
                     />
                   );
                 })}

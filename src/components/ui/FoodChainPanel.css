@@ -1,0 +1,168 @@
+.foodchain-panel {
+  position: absolute;
+  right: 12px;
+  top: 72px;
+  width: 260px;
+  max-height: calc(100vh - 320px);
+  background: rgba(15, 20, 25, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.3s;
+}
+
+.foodchain-panel.collapsed {
+  width: 44px;
+}
+
+.foodchain-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  user-select: none;
+}
+
+.foodchain-panel .panel-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.foodchain-panel .panel-body {
+  overflow-y: auto;
+  padding: 10px;
+  flex: 1;
+}
+
+.empty-hint {
+  text-align: center;
+  color: #666;
+  font-size: 13px;
+  padding: 30px 0;
+}
+
+.foodchain-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trophic-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.layer-label {
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 4px;
+}
+
+.layer-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.species-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+}
+
+.species-node:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.species-node.active {
+  background: color-mix(in srgb, var(--node-color) 25%, transparent);
+  border-color: var(--node-color);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--node-color) 40%, transparent);
+}
+
+.species-node.related {
+  background: color-mix(in srgb, var(--node-color) 12%, transparent);
+  border-color: color-mix(in srgb, var(--node-color) 40%, transparent);
+}
+
+.species-node.dimmed {
+  opacity: 0.3;
+}
+
+.node-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.node-name {
+  color: #ddd;
+}
+
+.node-count {
+  font-size: 10px;
+  color: #777;
+}
+
+.relation-tooltip {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.relation-title {
+  font-size: 12px;
+  color: #ccc;
+  margin-bottom: 8px;
+}
+
+.relation-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.relation-label {
+  flex-shrink: 0;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.relation-label.prey {
+  background: rgba(76, 175, 80, 0.2);
+  color: #81c784;
+}
+
+.relation-label.predator {
+  background: rgba(244, 67, 54, 0.2);
+  color: #e57373;
+}
+
+.relation-names {
+  color: #aaa;
+  line-height: 1.5;
+}

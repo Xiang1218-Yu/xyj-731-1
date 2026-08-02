@@ -69,6 +69,16 @@ export default function TrackingPanel() {
     .map(id => SPECIES[id]?.name)
     .filter((n): n is string => !!n);
 
+  // 污染耐受度描述
+  const toleranceText =
+    species.pollutionTolerance > 0.8 ? '强（耐污种）' :
+    species.pollutionTolerance > 0.5 ? '中等' :
+    species.pollutionTolerance > 0.25 ? '较弱' : '极敏感';
+  const pollutionPercent = Math.round(organism.pollutionDamage * 100);
+  const pollutionColor =
+    pollutionPercent < 30 ? '#4caf50' :
+    pollutionPercent < 70 ? '#ff9800' : '#f44336';
+
   return (
     <div className="tracking-panel">
       <div className="tracking-header">
@@ -121,6 +131,25 @@ export default function TrackingPanel() {
           </div>
         </div>
 
+        {/* 污染伤害条（仅在有污染伤害时显示） */}
+        {organism.pollutionDamage > 0.05 && (
+          <div className="stat-row">
+            <div className="stat-label">污染伤</div>
+            <div className="energy-bar">
+              <div
+                className="energy-fill"
+                style={{
+                  width: `${pollutionPercent}%`,
+                  background: pollutionColor
+                }}
+              />
+            </div>
+            <div className="stat-value" style={{ color: pollutionColor }}>
+              {pollutionPercent}%
+            </div>
+          </div>
+        )}
+
         {/* 基本信息 */}
         <div className="info-grid">
           <div className="info-item">
@@ -152,6 +181,10 @@ export default function TrackingPanel() {
               <span className="info-value glow-tag">生物发光</span>
             </div>
           )}
+          <div className="info-item">
+            <span className="info-label">耐污性</span>
+            <span className="info-value">{toleranceText}</span>
+          </div>
         </div>
 
         {/* 猎物 */}

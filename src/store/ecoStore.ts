@@ -25,74 +25,44 @@ const MAX_SNAPSHOTS = 200;
 /** 每隔多少仿真秒记录一次快照 */
 const SNAPSHOT_INTERVAL = 2;
 
+/** 生态缸中生物总数上限，防止无限繁殖导致性能问题 */
+const MAX_ORGANISMS = 120;
+
+/** 繁殖时亲子代的能量分配比例 */
+const REPRODUCTION_ENERGY_SPLIT = 0.4;
+
 // ============================================================
 // Store 类型定义
 // ============================================================
 
 interface EcoStoreState {
-  // ---- 场景 ----
   currentScene: PresetScene;
-
-  // ---- 生物集合 ----
   organisms: Organism[];
-
-  // ---- 时间 ----
   ecoTime: EcoTime;
   isPaused: boolean;
-  /** 仿真速度倍率 */
   timeScale: number;
-
-  // ---- 追踪模式 ----
   trackedOrganismId: string | null;
-
-  // ---- 食物链面板交互 ----
   highlightedSpeciesId: string | null;
   hoveredSpeciesId: string | null;
-
-  // ---- 历史时间轴 ----
   snapshots: Snapshot[];
-  /** 正在回看的快照时间戳；null 表示实时模式 */
   viewingTimestamp: number | null;
-  /** 上次记录快照的仿真时间 */
   lastSnapshotTime: number;
-
-  // ---- 待放置的物种（用户从面板点击后等待在3D中放置） ----
   pendingPlacementSpeciesId: string | null;
 }
 
 interface EcoStoreActions {
-  /** 加载预设场景 */
   loadPreset: (sceneId: SceneType) => void;
-
-  /** 每帧推进仿真 */
   tick: (deltaSec: number) => void;
-
-  /** 暂停/继续 */
   togglePause: () => void;
   setTimeScale: (scale: number) => void;
-
-  /** 添加一个生物（随机位置或指定位置） */
   addOrganism: (speciesId: string, position?: [number, number, number]) => void;
-
-  /** 移除一个生物 */
   removeOrganism: (id: string) => void;
-
-  /** 设置待放置物种 */
   setPendingPlacement: (speciesId: string | null) => void;
-
-  /** 设置追踪的生物 */
   setTrackedOrganism: (id: string | null) => void;
-
-  /** 设置食物链高亮物种 */
   setHighlightedSpecies: (id: string | null) => void;
   setHoveredSpecies: (id: string | null) => void;
-
-  /** 时间轴回看 */
   setViewingTimestamp: (ts: number | null) => void;
-  /** 根据回看时间戳获取对应的快照状态 */
   getViewingSnapshot: () => Snapshot | null;
-
-  /** 清空生态缸 */
   clearTank: () => void;
 }
 
@@ -116,6 +86,19 @@ function randomPosition(bounds: { x: number; y: number; z: number }): [number, n
   ];
 }
 
+/** 在父代附近生成子代位置 */
+function offspringPosition(
+  parentPos: [number, number, number],
+  bounds: { x: number; y: number; z: number }
+): [number, number, number] {
+  const offset = 0.8;
+  return [
+    Math.max(-bounds.x + 0.3, Math.min(bounds.x - 0.3, parentPos[0] + (Math.random() * 2 - 1) * offset)),
+    Math.max(-bounds.y + 0.3, Math.min(bounds.y - 0.3, parentPos[1] + (Math.random() * 2 - 1) * offset)),
+    Math.max(-bounds.z + 0.3, Math.min(bounds.z - 0.3, parentPos[2] + (Math.random() * 2 - 1) * offset))
+  ];
+}
+
 function createOrganism(speciesId: string, position?: [number, number, number]): Organism {
   const species = SPECIES[speciesId];
   const pos = position ?? randomPosition(TANK_BOUNDS);
@@ -129,34 +112,32 @@ function createOrganism(speciesId: string, position?: [number, number, number]):
     resting: false,
     age: 0,
     targetPosition: null,
-    lastFeedTime: 0
+    lastFeedTime: 0,
+    lastReproduceTime: 0,
+    pollutionDamage: 0
   };
 }
 
 function computeLightIntensity(hourOfDay: number): number {
-  // 6点日出，18点日落；使用平滑余弦曲线
   if (hourOfDay >= 6 && hourOfDay <= 18) {
     const t = (hourOfDay - 6) / 12;
     return Math.sin(t * Math.PI) * 0.8 + 0.2;
   }
-  return 0.08; // 夜晚微弱月光
+  return 0.08;
 }
 
 function isDaytime(hourOfDay: number): boolean {
   return hourOfDay >= 6 && hourOfDay <= 18;
 }
 
-function shouldRest(
-  activityPattern: Organism['resting'] extends never ? never : string,
-  daytime: boolean
-): boolean {
+function shouldRest(activityPattern: string, daytime: boolean): boolean {
   switch (activityPattern) {
     case 'diurnal':
-      return !daytime; // 昼行性夜晚休息
+      return !daytime;
     case 'nocturnal':
-      return daytime; // 夜行性白天休息
+      return daytime;
     case 'crepuscular':
-      return false;   // 晨昏型全天可活动（简化）
+      return false;
     case 'always':
     default:
       return false;
@@ -255,6 +236,7 @@ export const useEcoStore = create<EcoStore>((set, get) => ({
     const hourOfDay = newHour % 24;
     const daytime = isDaytime(hourOfDay);
     const lightIntensity = computeLightIntensity(hourOfDay);
+    const pollutionLevel = state.currentScene.pollutionLevel;
 
     const newEcoTime: EcoTime = {
       elapsed: newElapsed,
@@ -263,24 +245,34 @@ export const useEcoStore = create<EcoStore>((set, get) => ({
       lightIntensity
     };
 
+    // 统计当前各物种数量（用于繁殖密度控制）
+    const speciesPopulation: Record<string, number> = {};
+    for (const o of state.organisms) {
+      if (o.alive) {
+        speciesPopulation[o.speciesId] = (speciesPopulation[o.speciesId] ?? 0) + 1;
+      }
+    }
+    const totalPopulation = state.organisms.filter(o => o.alive).length;
+
+    // 新生生物列表（繁殖产生）
+    const newborns: Organism[] = [];
+
     // 更新每个生物
     const newOrganisms = state.organisms.map(org => {
       if (!org.alive) return org;
       const species = SPECIES[org.speciesId];
       if (!species) return org;
 
-      // 判断是否休眠
       const resting = shouldRest(species.activityPattern, daytime);
 
-      // 移动逻辑
+      // ---- 移动逻辑 ----
       let position = org.position;
       let rotation = org.rotation;
       let targetPosition = org.targetPosition;
-      const speedFactor = resting ? 0.2 : 1.0; // 休眠时减速
+      const speedFactor = resting ? 0.2 : 1.0;
       const actualSpeed = species.speed * speedFactor;
 
       if (species.movementType !== 'static' && actualSpeed > 0) {
-        // 如果没有目标，或已到达目标，选一个新目标
         const needsNewTarget =
           !targetPosition ||
           Math.hypot(
@@ -293,7 +285,6 @@ export const useEcoStore = create<EcoStore>((set, get) => ({
           targetPosition = randomPosition(TANK_BOUNDS);
         }
 
-        // 向目标移动（targetPosition 此时一定非空）
         const target = targetPosition!;
         const dx = target[0] - position[0];
         const dy = target[1] - position[1];
@@ -310,14 +301,93 @@ export const useEcoStore = create<EcoStore>((set, get) => ({
         }
       }
 
-      // 能量变化：生产者白天光合，消费者缓慢消耗
+      // ---- 能量变化 ----
       let energy = org.energy;
       if (species.trophicLevel === 'producer') {
         if (daytime) {
-          energy = Math.min(species.maxEnergy, energy + 5 * scaledDelta);
+          // 生产者光合产能量；高污染抑制敏感植物光合，但藻类等耐污种不受影响甚至受益
+          const pollutionPenalty = (1 - species.pollutionTolerance) * pollutionLevel * 0.7;
+          const pollutionBonus = species.pollutionTolerance > 0.7 ? pollutionLevel * 3 : 0;
+          const gain = (5 + pollutionBonus - pollutionPenalty * 5) * scaledDelta;
+          energy = Math.min(species.maxEnergy, energy + Math.max(0, gain));
         }
       } else {
-        energy = Math.max(0, energy - 1.5 * scaledDelta);
+        // 消费者基础能量消耗
+        let drain = 1.5 * scaledDelta;
+        // 污染增加敏感生物的能量消耗
+        if (pollutionLevel > 0) {
+          const pollutionStress = (1 - species.pollutionTolerance) * pollutionLevel * 3;
+          drain += pollutionStress * scaledDelta;
+        }
+        // 分解者从污染中获取能量
+        if (species.trophicLevel === 'decomposer' && pollutionLevel > 0) {
+          drain -= pollutionLevel * 4 * scaledDelta;
+        }
+        energy = Math.max(0, energy - drain);
+      }
+
+      // ---- 污染伤害 ----
+      let pollutionDamage = org.pollutionDamage;
+      if (pollutionLevel > 0 && species.pollutionTolerance < 1) {
+        // 耐受度越低、污染越高，伤害累积越快
+        const damageRate = (1 - species.pollutionTolerance) * pollutionLevel * 0.08;
+        pollutionDamage = Math.min(1, pollutionDamage + damageRate * scaledDelta);
+      } else if (pollutionLevel === 0 && pollutionDamage > 0) {
+        // 清洁水中污染伤害缓慢恢复
+        pollutionDamage = Math.max(0, pollutionDamage - 0.02 * scaledDelta);
+      }
+
+      // 污染伤害过高导致额外能量损耗
+      if (pollutionDamage > 0.5) {
+        energy = Math.max(0, energy - (pollutionDamage - 0.5) * 4 * scaledDelta);
+      }
+
+      // 判断是否因污染死亡
+      let alive: boolean = org.alive;
+      if (pollutionDamage >= 1) {
+        alive = false;
+      }
+
+      // 能量耗尽死亡
+      if (energy <= 0) {
+        alive = false;
+      }
+
+      // ---- 繁殖判断 ----
+      let lastReproduceTime = org.lastReproduceTime;
+      if (
+        alive &&
+        totalPopulation + newborns.length < MAX_ORGANISMS &&
+        org.age >= species.maturityAge &&
+        newElapsed - org.lastReproduceTime >= species.reproductionCooldown &&
+        energy >= species.maxEnergy * species.reproductionEnergyThreshold
+      ) {
+        // 密度抑制：同一物种数量越多，繁殖概率越低
+        const currentSpeciesCount = (speciesPopulation[org.speciesId] ?? 0) + newborns.filter(n => n.speciesId === org.speciesId).length;
+        const densityFactor = Math.max(0.05, 1 - currentSpeciesCount / 30);
+        const reproduceChance = 0.15 * densityFactor * scaledDelta;
+
+        if (Math.random() < reproduceChance) {
+          // 分裂能量
+          const offspringEnergy = energy * REPRODUCTION_ENERGY_SPLIT;
+          energy = energy * (1 - REPRODUCTION_ENERGY_SPLIT);
+          lastReproduceTime = newElapsed;
+
+          newborns.push({
+            id: genOrganismId(),
+            speciesId: org.speciesId,
+            position: offspringPosition(position, TANK_BOUNDS),
+            rotation: Math.random() * Math.PI * 2,
+            energy: offspringEnergy,
+            alive: true,
+            resting: false,
+            age: 0,
+            targetPosition: null,
+            lastFeedTime: newElapsed,
+            lastReproduceTime: newElapsed,
+            pollutionDamage: 0
+          });
+        }
       }
 
       return {
@@ -327,13 +397,16 @@ export const useEcoStore = create<EcoStore>((set, get) => ({
         targetPosition,
         energy,
         resting,
-        age: org.age + scaledDelta
+        alive,
+        age: org.age + scaledDelta,
+        lastReproduceTime,
+        pollutionDamage
       };
     });
 
-    // 简单捕食检测：消费者靠近猎物时获取能量
+    // ---- 捕食检测 ----
     const predationRadius = 0.8;
-    const organismsAfterPredation = [...newOrganisms];
+    const organismsAfterPredation = [...newOrganisms, ...newborns];
     for (let i = 0; i < organismsAfterPredation.length; i++) {
       const predator = organismsAfterPredation[i];
       if (!predator.alive || predator.resting) continue;
@@ -364,10 +437,9 @@ export const useEcoStore = create<EcoStore>((set, get) => ({
       }
     }
 
-    // 移除死亡生物（保留短暂，但这里直接清理）
     const aliveOrganisms = organismsAfterPredation.filter(o => o.alive);
 
-    // 记录历史快照
+    // ---- 记录历史快照 ----
     let snapshots = state.snapshots;
     let lastSnapshotTime = state.lastSnapshotTime;
     if (newElapsed - lastSnapshotTime >= SNAPSHOT_INTERVAL) {
@@ -403,18 +475,18 @@ export const useEcoStore = create<EcoStore>((set, get) => ({
   },
 
   setPendingPlacement: (speciesId) => set({ pendingPlacementSpeciesId: speciesId }),
-
   setTrackedOrganism: (id) => set({ trackedOrganismId: id }),
-
   setHighlightedSpecies: (id) => set({ highlightedSpeciesId: id }),
   setHoveredSpecies: (id) => set({ hoveredSpeciesId: id }),
 
-  setViewingTimestamp: (ts) => set({ viewingTimestamp: ts, isPaused: ts !== null ? true : get().isPaused }),
+  setViewingTimestamp: (ts) => set({
+    viewingTimestamp: ts,
+    isPaused: ts !== null ? true : get().isPaused
+  }),
 
   getViewingSnapshot: () => {
     const { viewingTimestamp, snapshots } = get();
     if (viewingTimestamp === null) return null;
-    // 找最接近的快照
     let closest: Snapshot | null = null;
     let minDiff = Infinity;
     for (const snap of snapshots) {

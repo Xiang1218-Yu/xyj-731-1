@@ -1,10 +1,15 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useEcoStore } from '../../store/ecoStore';
-import type { Snapshot } from '../../types';
+import {
+  findBracketingSnapshots,
+  interpolateOrganisms,
+  interpolateEcoTime
+} from '../../utils/snapshotInterpolation';
 import './Timeline.css';
 
 // ============================================================
 // 时间轴组件：记录历史快照，支持暂停后拖动回看
+// 回看时在两个相邻快照之间进行插值，支持精确到任意时刻
 // ============================================================
 
 export default function Timeline() {
@@ -27,17 +32,21 @@ export default function Timeline() {
     ? ((currentTime - minTime) / (maxTime - minTime)) * 100
     : 0;
 
-  // 找到当前查看的快照
-  const currentSnapshot = useMemo<Snapshot | null>(() => {
+  // 使用插值计算当前查看时刻的精确状态
+  const viewingState = useMemo(() => {
     if (viewingTimestamp === null || snapshots.length === 0) return null;
-    return snapshots.reduce<Snapshot | null>((acc, snap) => {
-      if (!acc) return snap;
-      return Math.abs(snap.timestamp - viewingTimestamp) <
-        Math.abs(acc.timestamp - viewingTimestamp)
-        ? snap
-        : acc;
-    }, null);
+    const { before, after, t } = findBracketingSnapshots(snapshots, viewingTimestamp);
+    const organisms = interpolateOrganisms(before, after, t);
+    const interpolatedTime = interpolateEcoTime(before, after, t, viewingTimestamp);
+    return { organisms, ecoTime: interpolatedTime };
   }, [viewingTimestamp, snapshots]);
+
+  const displayOrganismCount = viewingState?.organisms.length ?? 0;
+  const displayTotalEnergy = viewingState
+    ? Math.round(viewingState.organisms.reduce((sum, o) => sum + o.energy, 0))
+    : 0;
+  const displayHour = viewingState?.ecoTime.hourOfDay ?? 0;
+  const displayIsDay = viewingState?.ecoTime.isDaytime ?? true;
 
   // 拖动逻辑
   const handleTrackInteraction = (clientX: number) => {
@@ -84,13 +93,13 @@ export default function Timeline() {
           <span className="timeline-label">
             {viewingTimestamp !== null ? '⏪ 回看模式' : '⏱ 实时仿真'}
           </span>
-          {currentSnapshot && (
+          {viewingState && (
             <span className="snapshot-info">
-              | 生物数: {currentSnapshot.organisms.length} |
-              总能量: {Math.round(currentSnapshot.totalEnergy)} |
-              时间: {Math.floor(currentSnapshot.ecoTime.hourOfDay)}:
-              {Math.floor((currentSnapshot.ecoTime.hourOfDay % 1) * 60).toString().padStart(2, '0')}
-              {currentSnapshot.ecoTime.isDaytime ? ' ☀️' : ' 🌙'}
+              | 生物数: {displayOrganismCount} |
+              总能量: {displayTotalEnergy} |
+              时间: {Math.floor(displayHour)}:
+              {Math.floor((displayHour % 1) * 60).toString().padStart(2, '0')}
+              {displayIsDay ? ' ☀️' : ' 🌙'}
             </span>
           )}
         </div>
@@ -175,3 +184,4 @@ export default function Timeline() {
     </div>
   );
 }
+

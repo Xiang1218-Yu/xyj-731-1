@@ -1,20 +1,29 @@
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useEcoStore, TANK_BOUNDS } from '../../store/ecoStore';
+import type { EcoTime } from '../../types';
 
 // ============================================================
 // 昼夜循环光照系统
 // 根据 ecoTime 动态调整：环境光、太阳方向光、月光、雾色
+// overrideEcoTime 用于历史回看时的插值时间
 // ============================================================
 
-export default function DayNightCycle() {
+interface DayNightCycleProps {
+  overrideEcoTime?: EcoTime;
+}
+
+export default function DayNightCycle({ overrideEcoTime }: DayNightCycleProps) {
   const directionalRef = useRef<THREE.DirectionalLight>(null);
   const ambientRef = useRef<THREE.AmbientLight>(null);
   const hemisphereRef = useRef<THREE.HemisphereLight>(null);
 
-  const ecoTime = useEcoStore(s => s.ecoTime);
+  const storeEcoTime = useEcoStore(s => s.ecoTime);
   const currentScene = useEcoStore(s => s.currentScene);
+
+  // 回看模式使用插值时间，实时模式使用store时间
+  const ecoTime = overrideEcoTime ?? storeEcoTime;
 
   useFrame(() => {
     if (!directionalRef.current || !ambientRef.current || !hemisphereRef.current) return;
@@ -42,7 +51,10 @@ export default function DayNightCycle() {
   });
 
   // 场景背景色随昼夜变化
-  const bgColor = isDayTimeBgColor(ecoTime.lightIntensity, currentScene.fogColor);
+  const bgColor = useMemo(
+    () => computeBgColor(ecoTime.lightIntensity, currentScene.fogColor),
+    [ecoTime.lightIntensity, currentScene.fogColor]
+  );
 
   return (
     <>
@@ -72,7 +84,7 @@ export default function DayNightCycle() {
   );
 }
 
-function isDayTimeBgColor(lightIntensity: number, fogColor: string): string {
+function computeBgColor(lightIntensity: number, fogColor: string): string {
   const dayColor = new THREE.Color('#1a2a3a');
   const nightColor = new THREE.Color('#050810');
   const sceneTint = new THREE.Color(fogColor);

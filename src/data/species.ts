@@ -8,6 +8,7 @@ import {
 
 // ============================================================
 // 物种数据库 —— 包含淡水湖泊、热带雨林、污染水域的代表物种
+// pollutionTolerance: 0=极敏感  1=完全耐受
 // ============================================================
 
 export const SPECIES: Record<string, SpeciesTemplate> = {
@@ -26,7 +27,11 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     speed: 0.1,
     maxEnergy: 100,
     description: '漂浮在水面的小型水生植物，通过光合作用产生能量，是淡水生态系统的基础生产者。',
-    habitat: [SceneType.FreshwaterLake]
+    habitat: [SceneType.FreshwaterLake],
+    pollutionTolerance: 0.25,
+    maturityAge: 15,
+    reproductionEnergyThreshold: 0.6,
+    reproductionCooldown: 20
   },
   waterweed: {
     id: 'waterweed',
@@ -42,7 +47,11 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     speed: 0,
     maxEnergy: 120,
     description: '沉水植物，扎根水底，释放氧气，为水生动物提供栖息和食物。',
-    habitat: [SceneType.FreshwaterLake]
+    habitat: [SceneType.FreshwaterLake],
+    pollutionTolerance: 0.3,
+    maturityAge: 20,
+    reproductionEnergyThreshold: 0.65,
+    reproductionCooldown: 25
   },
   tropicalFern: {
     id: 'tropicalFern',
@@ -58,7 +67,11 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     speed: 0,
     maxEnergy: 150,
     description: '热带雨林地表常见蕨类，喜阴湿环境，是雨林生态的重要生产者。',
-    habitat: [SceneType.TropicalRainforest]
+    habitat: [SceneType.TropicalRainforest],
+    pollutionTolerance: 0.4,
+    maturityAge: 25,
+    reproductionEnergyThreshold: 0.7,
+    reproductionCooldown: 30
   },
   moss: {
     id: 'moss',
@@ -74,7 +87,11 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     speed: 0,
     maxEnergy: 80,
     description: '苔藓植物，保水能力强，在雨林地表形成厚厚的地被层。',
-    habitat: [SceneType.TropicalRainforest]
+    habitat: [SceneType.TropicalRainforest],
+    pollutionTolerance: 0.35,
+    maturityAge: 18,
+    reproductionEnergyThreshold: 0.6,
+    reproductionCooldown: 22
   },
   algae: {
     id: 'algae',
@@ -89,8 +106,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.15,
     speed: 0.05,
     maxEnergy: 60,
-    description: '单细胞或多细胞藻类，富营养化或污染水体中大量繁殖。',
-    habitat: [SceneType.FreshwaterLake, SceneType.PollutedWater]
+    description: '单细胞或多细胞藻类，富营养化或污染水体中大量繁殖。污染越重繁殖越快。',
+    habitat: [SceneType.FreshwaterLake, SceneType.PollutedWater],
+    pollutionTolerance: 0.95,
+    maturityAge: 8,
+    reproductionEnergyThreshold: 0.45,
+    reproductionCooldown: 10
   },
 
   // ---------- 初级消费者（草食/滤食） ----------
@@ -107,8 +128,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.15,
     speed: 0.8,
     maxEnergy: 40,
-    description: '小型浮游动物，以藻类为食，是鱼类的重要饵料。',
-    habitat: [SceneType.FreshwaterLake, SceneType.PollutedWater]
+    description: '小型浮游动物，以藻类为食，是鱼类的重要饵料。对污染较敏感。',
+    habitat: [SceneType.FreshwaterLake, SceneType.PollutedWater],
+    pollutionTolerance: 0.5,
+    maturityAge: 18,
+    reproductionEnergyThreshold: 0.65,
+    reproductionCooldown: 22
   },
   snail: {
     id: 'snail',
@@ -123,8 +148,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.3,
     speed: 0.2,
     maxEnergy: 60,
-    description: '淡水腹足类，刮食藻类和水草，活动缓慢。',
-    habitat: [SceneType.FreshwaterLake]
+    description: '淡水腹足类，刮食藻类和水草，活动缓慢。有一定耐污能力。',
+    habitat: [SceneType.FreshwaterLake],
+    pollutionTolerance: 0.4,
+    maturityAge: 25,
+    reproductionEnergyThreshold: 0.7,
+    reproductionCooldown: 30
   },
   tadpole: {
     id: 'tadpole',
@@ -139,8 +168,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.25,
     speed: 0.6,
     maxEnergy: 50,
-    description: '青蛙的幼体，生活在水中，以藻类为食。',
-    habitat: [SceneType.FreshwaterLake]
+    description: '青蛙的幼体，生活在水中，以藻类为食。对水质污染敏感。',
+    habitat: [SceneType.FreshwaterLake],
+    pollutionTolerance: 0.25,
+    maturityAge: 20,
+    reproductionEnergyThreshold: 0.65,
+    reproductionCooldown: 25
   },
   butterfly: {
     id: 'butterfly',
@@ -156,7 +189,11 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     speed: 1.0,
     maxEnergy: 45,
     description: '热带雨林中色彩艳丽的蝴蝶，白天活动，取食花蜜和植物汁液。',
-    habitat: [SceneType.TropicalRainforest]
+    habitat: [SceneType.TropicalRainforest],
+    pollutionTolerance: 0.3,
+    maturityAge: 15,
+    reproductionEnergyThreshold: 0.6,
+    reproductionCooldown: 20
   },
   fruitBeetle: {
     id: 'fruitBeetle',
@@ -172,7 +209,11 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     speed: 0.7,
     maxEnergy: 40,
     description: '雨林中的甲虫，以腐烂果实和植物为食。',
-    habitat: [SceneType.TropicalRainforest]
+    habitat: [SceneType.TropicalRainforest],
+    pollutionTolerance: 0.35,
+    maturityAge: 16,
+    reproductionEnergyThreshold: 0.6,
+    reproductionCooldown: 22
   },
   leech: {
     id: 'leech',
@@ -187,8 +228,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.3,
     speed: 0.4,
     maxEnergy: 55,
-    description: '环节动物，夜间活动，在污染水域也能存活。',
-    habitat: [SceneType.FreshwaterLake, SceneType.PollutedWater]
+    description: '环节动物，夜间活动，耐污染能力强，在污染水域中常见。',
+    habitat: [SceneType.FreshwaterLake, SceneType.PollutedWater],
+    pollutionTolerance: 0.8,
+    maturityAge: 22,
+    reproductionEnergyThreshold: 0.65,
+    reproductionCooldown: 28
   },
 
   // ---------- 次级消费者 ----------
@@ -205,8 +250,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.45,
     speed: 1.2,
     maxEnergy: 80,
-    description: '常见淡水小鱼，杂食性，以浮游动物和植物为食。',
-    habitat: [SceneType.FreshwaterLake]
+    description: '常见淡水小鱼，杂食性，以浮游动物和植物为食。对污染有一定耐受性。',
+    habitat: [SceneType.FreshwaterLake],
+    pollutionTolerance: 0.4,
+    maturityAge: 30,
+    reproductionEnergyThreshold: 0.7,
+    reproductionCooldown: 35
   },
   frog: {
     id: 'frog',
@@ -221,8 +270,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.4,
     speed: 0.9,
     maxEnergy: 75,
-    description: '两栖动物，晨昏活动捕食昆虫，是水陆生态的连接者。',
-    habitat: [SceneType.FreshwaterLake, SceneType.TropicalRainforest]
+    description: '两栖动物，晨昏活动捕食昆虫，是水陆生态的连接者。皮肤对污染敏感。',
+    habitat: [SceneType.FreshwaterLake, SceneType.TropicalRainforest],
+    pollutionTolerance: 0.3,
+    maturityAge: 28,
+    reproductionEnergyThreshold: 0.7,
+    reproductionCooldown: 35
   },
   gecko: {
     id: 'gecko',
@@ -238,7 +291,11 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     speed: 0.8,
     maxEnergy: 70,
     description: '夜行性爬行动物，夜间捕食昆虫，眼睛在微光中发光。',
-    habitat: [SceneType.TropicalRainforest]
+    habitat: [SceneType.TropicalRainforest],
+    pollutionTolerance: 0.35,
+    maturityAge: 26,
+    reproductionEnergyThreshold: 0.7,
+    reproductionCooldown: 32
   },
   firefly: {
     id: 'firefly',
@@ -253,8 +310,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.18,
     speed: 0.5,
     maxEnergy: 35,
-    description: '夜行性昆虫，腹部能发出冷光，是雨林夜晚的标志性生物。',
-    habitat: [SceneType.TropicalRainforest]
+    description: '夜行性昆虫，腹部能发出冷光，是雨林夜晚的标志性生物。对污染极敏感。',
+    habitat: [SceneType.TropicalRainforest],
+    pollutionTolerance: 0.15,
+    maturityAge: 14,
+    reproductionEnergyThreshold: 0.6,
+    reproductionCooldown: 20
   },
   catfish: {
     id: 'catfish',
@@ -269,8 +330,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.6,
     speed: 0.7,
     maxEnergy: 90,
-    description: '底栖夜行鱼类，耐污染能力强，是污染水域中常见的鱼类。',
-    habitat: [SceneType.FreshwaterLake, SceneType.PollutedWater]
+    description: '底栖夜行鱼类，耐污染能力极强，是污染水域中的优势鱼类。',
+    habitat: [SceneType.FreshwaterLake, SceneType.PollutedWater],
+    pollutionTolerance: 0.9,
+    maturityAge: 30,
+    reproductionEnergyThreshold: 0.7,
+    reproductionCooldown: 35
   },
 
   // ---------- 三级消费者（顶级捕食者） ----------
@@ -287,8 +352,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.9,
     speed: 1.8,
     maxEnergy: 150,
-    description: '淡水顶级捕食者，体型大、游动迅速，捕食其他鱼类和两栖动物。',
-    habitat: [SceneType.FreshwaterLake]
+    description: '淡水顶级捕食者，体型大、游动迅速。对水质要求高，污染会导致其死亡。',
+    habitat: [SceneType.FreshwaterLake],
+    pollutionTolerance: 0.2,
+    maturityAge: 40,
+    reproductionEnergyThreshold: 0.75,
+    reproductionCooldown: 50
   },
   treeSnake: {
     id: 'treeSnake',
@@ -304,7 +373,11 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     speed: 0.6,
     maxEnergy: 130,
     description: '雨林树栖蛇类，夜间捕食小型脊椎动物，是雨林生态的顶级捕食者。',
-    habitat: [SceneType.TropicalRainforest]
+    habitat: [SceneType.TropicalRainforest],
+    pollutionTolerance: 0.25,
+    maturityAge: 45,
+    reproductionEnergyThreshold: 0.75,
+    reproductionCooldown: 55
   },
 
   // ---------- 分解者 ----------
@@ -321,8 +394,12 @@ export const SPECIES: Record<string, SpeciesTemplate> = {
     size: 0.1,
     speed: 0,
     maxEnergy: 30,
-    description: '微生物分解者，分解死亡生物的有机物，促进物质循环。在污染水体中大量存在。',
-    habitat: [SceneType.FreshwaterLake, SceneType.TropicalRainforest, SceneType.PollutedWater]
+    description: '微生物分解者，在污染水体中大量繁殖，分解有机物并从污染中获取能量。',
+    habitat: [SceneType.FreshwaterLake, SceneType.TropicalRainforest, SceneType.PollutedWater],
+    pollutionTolerance: 1.0,
+    maturityAge: 5,
+    reproductionEnergyThreshold: 0.35,
+    reproductionCooldown: 8
   }
 };
 

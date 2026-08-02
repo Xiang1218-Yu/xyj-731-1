@@ -60,6 +60,14 @@ export interface SpeciesTemplate {
   description: string;
   /** 适存场景 */
   habitat: SceneType[];
+  /** 污染耐受度 0-1：0=极敏感，1=完全耐受（在污染水中正常生存） */
+  pollutionTolerance: number;
+  /** 繁殖所需的最小年龄（秒） */
+  maturityAge: number;
+  /** 繁殖所需的能量阈值占比（0-1） */
+  reproductionEnergyThreshold: number;
+  /** 繁殖冷却时间（秒） */
+  reproductionCooldown: number;
 }
 
 /** 生态缸中单个生物的运行时状态 */
@@ -82,6 +90,10 @@ export interface Organism {
   targetPosition: [number, number, number] | null;
   /** 上次进食时间 */
   lastFeedTime: number;
+  /** 上次繁殖时间 */
+  lastReproduceTime: number;
+  /** 污染伤害累积（0-1，达到1时死亡） */
+  pollutionDamage: number;
 }
 
 /** 生态系统时间状态 */

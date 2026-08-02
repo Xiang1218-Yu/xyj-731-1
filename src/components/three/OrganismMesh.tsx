@@ -53,14 +53,19 @@ export default function OrganismMesh({ organism }: OrganismMeshProps) {
     }
   }, [species.movementType]);
 
-  // 颜色：夜晚休眠时变暗，发光物种夜晚发光
+  // 颜色：夜晚休眠时变暗，发光物种夜晚发光，污染伤害导致变色
   const baseColor = useMemo(() => {
     const c = new THREE.Color(species.color);
     if (organism.resting) {
       c.multiplyScalar(0.4);
     }
+    // 污染伤害：向暗褐色偏移，伤害越高越明显
+    if (organism.pollutionDamage > 0.1) {
+      const poisonColor = new THREE.Color('#5a4a2a');
+      c.lerp(poisonColor, organism.pollutionDamage * 0.7);
+    }
     return c;
-  }, [species.color, organism.resting]);
+  }, [species.color, organism.resting, organism.pollutionDamage]);
 
   // 缩放
   const scale = species.size;

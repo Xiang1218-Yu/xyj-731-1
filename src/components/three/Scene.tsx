@@ -4,7 +4,12 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useEcoStore, TANK_BOUNDS } from '../../store/ecoStore';
 import { SceneType } from '../../types';
-import type { Organism, Snapshot } from '../../types';
+import type { Organism, EcoTime } from '../../types';
+import {
+  findBracketingSnapshots,
+  interpolateOrganisms,
+  interpolateEcoTime
+} from '../../utils/snapshotInterpolation';
 import Terrarium from './Terrarium';
 import OrganismMesh from './OrganismMesh';
 import DayNightCycle from './DayNightCycle';
@@ -40,8 +45,10 @@ function SceneClickHandler() {
   const setPendingPlacement = useEcoStore(s => s.setPendingPlacement);
   const setTrackedOrganism = useEcoStore(s => s.setTrackedOrganism);
   const setHighlightedSpecies = useEcoStore(s => s.setHighlightedSpecies);
+  const viewingTimestamp = useEcoStore(s => s.viewingTimestamp);
 
   const handleMiss = (e: ClickEvent) => {
+    if (viewingTimestamp !== null) return;
     if (pendingPlacementSpeciesId) {
       const point = e.point;
       const x = Math.max(-TANK_BOUNDS.x + 0.5, Math.min(TANK_BOUNDS.x - 0.5, point.x));
@@ -76,20 +83,25 @@ function SceneContent() {
   const currentScene = useEcoStore(s => s.currentScene);
   const viewingTimestamp = useEcoStore(s => s.viewingTimestamp);
   const snapshots = useEcoStore(s => s.snapshots);
+  const liveEcoTime = useEcoStore(s => s.ecoTime);
 
-  const displayOrganisms = useMemo<Organism[]>(() => {
-    if (viewingTimestamp !== null) {
-      const closest = snapshots.reduce<Snapshot | null>((acc, snap) => {
-        if (!acc) return snap;
-        return Math.abs(snap.timestamp - viewingTimestamp) <
-          Math.abs(acc.timestamp - viewingTimestamp)
-          ? snap
-          : acc;
-      }, null);
-      return closest?.organisms ?? [];
+  // 回看模式下在两个快照之间插值，实时模式直接使用当前状态
+  const { displayOrganisms, displayEcoTime } = useMemo<{
+    displayOrganisms: Organism[];
+    displayEcoTime: EcoTime;
+  }>(() => {
+    if (viewingTimestamp !== null && snapshots.length > 0) {
+      const { before, after, t } = findBracketingSnapshots(snapshots, viewingTimestamp);
+      return {
+        displayOrganisms: interpolateOrganisms(before, after, t),
+        displayEcoTime: interpolateEcoTime(before, after, t, viewingTimestamp)
+      };
     }
-    return organisms;
-  }, [viewingTimestamp, snapshots, organisms]);
+    return {
+      displayOrganisms: organisms,
+      displayEcoTime: liveEcoTime
+    };
+  }, [viewingTimestamp, snapshots, organisms, liveEcoTime]);
 
   const isWaterScene =
     currentScene.id === SceneType.FreshwaterLake ||
@@ -98,7 +110,7 @@ function SceneContent() {
   return (
     <>
       <SimulationStepper />
-      <DayNightCycle />
+      <DayNightCycle overrideEcoTime={viewingTimestamp !== null ? displayEcoTime : undefined} />
       <TrackingCamera />
 
       <Terrarium isWaterScene={isWaterScene} />

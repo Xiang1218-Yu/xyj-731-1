@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
 import { useEcoStore } from '../../store/ecoStore';
 import { SPECIES } from '../../data/species';
 import { TrophicLevel } from '../../types';
@@ -6,7 +6,7 @@ import type { SpeciesTemplate } from '../../types';
 import './FoodChainPanel.css';
 
 // ============================================================
-// 食物链面板：以营养级分层展示食物网
+// 食物链面板：以营养级分层展示食物网，含SVG连线
 // 点击节点高亮对应物种，悬停显示捕食/被捕食关系
 // ============================================================
 
@@ -26,6 +26,17 @@ const TROPHIC_ORDER: TrophicLevel[] = [
   TrophicLevel.Decomposer
 ];
 
+interface NodePosition {
+  x: number;
+  y: number;
+}
+
+interface EdgeData {
+  from: string;
+  to: string;
+  active: boolean;
+}
+
 export default function FoodChainPanel() {
   const organisms = useEcoStore(s => s.organisms);
   const highlightedSpeciesId = useEcoStore(s => s.highlightedSpeciesId);
@@ -35,7 +46,13 @@ export default function FoodChainPanel() {
   const setTrackedOrganism = useEcoStore(s => s.setTrackedOrganism);
   const [collapsed, setCollapsed] = useState(false);
 
-  // 当前缸中存在的物种
+  const containerRef = useRef<HTMLDivElement>(null);
+  const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const presentSpeciesRef = useRef<SpeciesTemplate[]>([]);
+  const [positions, setPositions] = useState<Record<string, NodePosition>>({});
+  const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
+
+  // 当前缸中存在的物种（memoized 以避免无限渲染循环）
   const presentSpeciesIds = useMemo(() => {
     const ids = new Set<string>();
     organisms.forEach(o => {
@@ -44,18 +61,76 @@ export default function FoodChainPanel() {
     return ids;
   }, [organisms]);
 
-  const presentSpecies = Array.from(presentSpeciesIds)
-    .map(id => SPECIES[id])
-    .filter((s): s is SpeciesTemplate => s !== undefined);
+  const presentSpecies = useMemo(
+    () =>
+      Array.from(presentSpeciesIds)
+        .map(id => SPECIES[id])
+        .filter((s): s is SpeciesTemplate => s !== undefined),
+    [presentSpeciesIds]
+  );
+
+  // 同步到 ref，使 measurePositions 回调保持稳定
+  presentSpeciesRef.current = presentSpecies;
 
   // 按营养级分组
-  const grouped = TROPHIC_ORDER.map(level => ({
-    level,
-    label: TROPHIC_LABELS[level],
-    species: presentSpecies.filter(s => s.trophicLevel === level)
-  })).filter(g => g.species.length > 0);
+  const grouped = useMemo(
+    () =>
+      TROPHIC_ORDER.map(level => ({
+        level,
+        label: TROPHIC_LABELS[level],
+        species: presentSpecies.filter(s => s.trophicLevel === level)
+      })).filter(g => g.species.length > 0),
+    [presentSpecies]
+  );
 
-  // 计算每个物种的捕食关系（只包含缸中存在的物种）
+  // 计算食物网边（捕食关系）
+  const edges = useMemo<EdgeData[]>(() => {
+    const result: EdgeData[] = [];
+    const activeId = hoveredSpeciesId ?? highlightedSpeciesId;
+    for (const species of presentSpecies) {
+      for (const preyId of species.preyIds) {
+        if (presentSpeciesIds.has(preyId)) {
+          const isActive =
+            activeId !== null &&
+            (species.id === activeId || preyId === activeId);
+          result.push({ from: preyId, to: species.id, active: isActive });
+        }
+      }
+    }
+    return result;
+  }, [presentSpecies, presentSpeciesIds, hoveredSpeciesId, highlightedSpeciesId]);
+
+  // 测量节点位置，用于绘制SVG连线（使用ref保持回调稳定）
+  const measurePositions = useCallback(() => {
+    if (!containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const newPositions: Record<string, NodePosition> = {};
+    for (const species of presentSpeciesRef.current) {
+      const el = nodeRefs.current[species.id];
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        newPositions[species.id] = {
+          x: rect.left - containerRect.left + rect.width / 2,
+          y: rect.top - containerRect.top + rect.height / 2
+        };
+      }
+    }
+    setPositions(newPositions);
+    setSvgSize({ width: containerRect.width, height: containerRect.height });
+  }, []);
+
+  // 仅在物种集合变化或折叠状态切换时重新测量
+  const speciesKey = presentSpecies.map(s => s.id).sort().join(',');
+  useLayoutEffect(() => {
+    const raf = requestAnimationFrame(() => measurePositions());
+    window.addEventListener('resize', measurePositions);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', measurePositions);
+    };
+  }, [speciesKey, collapsed, measurePositions]);
+
+  // 计算每个物种的捕食关系
   const getRelations = (speciesId: string) => {
     const species = SPECIES[speciesId];
     if (!species) return { predators: [] as string[], prey: [] as string[] };
@@ -82,7 +157,6 @@ export default function FoodChainPanel() {
       setTrackedOrganism(null);
     } else {
       setHighlightedSpecies(speciesId);
-      // 找到该物种的一个生物进行追踪
       const org = organisms.find(o => o.speciesId === speciesId && o.alive);
       if (org) {
         setTrackedOrganism(org.id);
@@ -107,38 +181,90 @@ export default function FoodChainPanel() {
           {grouped.length === 0 ? (
             <div className="empty-hint">生态缸中暂无生物</div>
           ) : (
-            <div className="foodchain-layers">
-              {grouped.map(group => (
-                <div key={group.level} className="trophic-layer">
-                  <div className="layer-label">{group.label}</div>
-                  <div className="layer-nodes">
-                    {group.species.map(species => {
-                      const related = isRelated(species.id);
-                      const dimmed = activeId && !related;
-                      const isActive = activeId === species.id;
-                      return (
-                        <div
-                          key={species.id}
-                          className={`species-node ${isActive ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${related && !isActive ? 'related' : ''}`}
-                          onClick={() => handleNodeClick(species.id)}
-                          onMouseEnter={() => setHoveredSpecies(species.id)}
-                          onMouseLeave={() => setHoveredSpecies(null)}
-                          style={{
-                            '--node-color': species.color
-                          } as React.CSSProperties}
-                        >
-                          <span
-                            className="node-dot"
-                            style={{ background: species.color }}
-                          />
-                          <span className="node-name">{species.name}</span>
-                          <span className="node-count">×{countBySpecies[species.id] ?? 0}</span>
-                        </div>
-                      );
-                    })}
+            <div className="foodchain-container" ref={containerRef}>
+              {/* SVG 连线层 */}
+              <svg
+                className="foodchain-svg"
+                width={svgSize.width}
+                height={svgSize.height}
+              >
+                <defs>
+                  <marker
+                    id="arrowhead"
+                    markerWidth="8"
+                    markerHeight="6"
+                    refX="7"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 8 3, 0 6" fill="rgba(255,255,255,0.3)" />
+                  </marker>
+                  <marker
+                    id="arrowhead-active"
+                    markerWidth="8"
+                    markerHeight="6"
+                    refX="7"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 8 3, 0 6" fill="#ffc107" />
+                  </marker>
+                </defs>
+                {edges.map((edge, i) => {
+                  const from = positions[edge.from];
+                  const to = positions[edge.to];
+                  if (!from || !to) return null;
+                  const midY = (from.y + to.y) / 2;
+                  const path = `M ${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}`;
+                  return (
+                    <path
+                      key={`edge-${i}`}
+                      d={path}
+                      fill="none"
+                      stroke={edge.active ? '#ffc107' : 'rgba(255,255,255,0.2)'}
+                      strokeWidth={edge.active ? 2 : 1}
+                      strokeOpacity={edge.active ? 0.9 : activeId ? 0.1 : 0.35}
+                      markerEnd={edge.active ? 'url(#arrowhead-active)' : 'url(#arrowhead)'}
+                    />
+                  );
+                })}
+              </svg>
+
+              {/* 节点层 */}
+              <div className="foodchain-layers">
+                {grouped.map(group => (
+                  <div key={group.level} className="trophic-layer">
+                    <div className="layer-label">{group.label}</div>
+                    <div className="layer-nodes">
+                      {group.species.map(species => {
+                        const related = isRelated(species.id);
+                        const dimmed = activeId !== null && !related;
+                        const isActive = activeId === species.id;
+                        return (
+                          <div
+                            key={species.id}
+                            ref={el => { nodeRefs.current[species.id] = el; }}
+                            className={`species-node ${isActive ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${related && !isActive ? 'related' : ''}`}
+                            onClick={() => handleNodeClick(species.id)}
+                            onMouseEnter={() => setHoveredSpecies(species.id)}
+                            onMouseLeave={() => setHoveredSpecies(null)}
+                            style={{
+                              '--node-color': species.color
+                            } as React.CSSProperties}
+                          >
+                            <span
+                              className="node-dot"
+                              style={{ background: species.color }}
+                            />
+                            <span className="node-name">{species.name}</span>
+                            <span className="node-count">×{countBySpecies[species.id] ?? 0}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 

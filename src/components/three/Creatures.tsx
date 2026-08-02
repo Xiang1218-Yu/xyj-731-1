@@ -18,6 +18,7 @@ export function Creatures({ snapshotCreatures, isNight }: CreaturesProps) {
   const hoveredSpecies = useEcoStore((s) => s.hoveredSpeciesId);
   const selectCreature = useEcoStore((s) => s.selectCreature);
   const trackCreature = useEcoStore((s) => s.trackCreature);
+  const setTrackedSpecies = useEcoStore((s) => s.setTrackedSpecies);
 
   const creatures = snapshotCreatures ?? liveCreatures;
   const activeId = inspectingId ?? selectedId;
@@ -46,8 +47,10 @@ export function Creatures({ snapshotCreatures, isNight }: CreaturesProps) {
             highlighted={highlighted}
             selected={selected}
             onClick={() => {
+              // 点击生物：选中并进入追踪，同时高亮食物网中对应的物种类节点
               selectCreature(c.id);
               trackCreature(c.id);
+              setTrackedSpecies(c.speciesId);
             }}
           />
         );

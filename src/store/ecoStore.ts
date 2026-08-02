@@ -88,7 +88,58 @@ function buildSceneState(sceneId: string): {
   };
 }
 
-/** 深拷贝一份当前状态用于快照（位置/速度等均为原始值，可直接结构化克隆） */
+/** 完整深拷贝单个生物，确保快照与实时状态完全独立 */
+export function cloneCreature(c: Creature): Creature {
+  return {
+    id: c.id,
+    speciesId: c.speciesId,
+    position: [c.position[0], c.position[1], c.position[2]],
+    velocity: [c.velocity[0], c.velocity[1], c.velocity[2]],
+    energy: c.energy,
+    age: c.age,
+    alive: c.alive,
+    targetId: c.targetId,
+    seed: c.seed,
+    scale: c.scale,
+    heading: c.heading,
+    phase: c.phase,
+    resting: c.resting,
+  };
+}
+
+/** 完整深拷贝环境，逐字段复制保证独立 */
+function cloneEnvironment(env: EnvironmentState): EnvironmentState {
+  return {
+    timeOfDay: env.timeOfDay,
+    dayCount: env.dayCount,
+    phase: env.phase,
+    sunIntensity: env.sunIntensity,
+    ambientIntensity: env.ambientIntensity,
+    waterTint: env.waterTint,
+    fogTint: env.fogTint,
+    isNight: env.isNight,
+    pollution: env.pollution,
+  };
+}
+
+/** 从快照恢复一份完全独立的实时状态 */
+function restoreFromSnapshot(snap: Snapshot): {
+  creatures: Creature[];
+  env: EnvironmentState;
+  populations: Record<string, number>;
+  tick: number;
+  simTime: number;
+} {
+  return {
+    creatures: snap.creatures.map(cloneCreature),
+    env: cloneEnvironment(snap.env),
+    populations: { ...snap.populations },
+    tick: snap.tick,
+    simTime: snap.simTime,
+  };
+}
+
+/** 深拷贝一份当前状态用于快照，逐字段复制保证历史状态完全独立 */
 function takeSnapshot(
   creatures: Creature[],
   env: EnvironmentState,
@@ -98,8 +149,8 @@ function takeSnapshot(
   return {
     tick,
     simTime,
-    creatures: creatures.map((c) => ({ ...c, position: [...c.position] as [number, number, number], velocity: [...c.velocity] as [number, number, number] })),
-    env: { ...env },
+    creatures: creatures.map(cloneCreature),
+    env: cloneEnvironment(env),
     populations: countPopulations(creatures),
   };
 }
@@ -156,8 +207,25 @@ export const useEcoStore = create<EcoState>((set, get) => ({
 
   selectCreature: (id) => set({ selectedCreatureId: id }),
 
-  trackCreature: (id) =>
-    set({ inspectingCreatureId: id, selectedCreatureId: id }),
+  // 点击生物进入追踪时，同步设置食物网高亮物种
+  trackCreature: (id) => {
+    if (!id) {
+      set({ inspectingCreatureId: null, selectedCreatureId: null, trackedSpeciesId: null });
+      return;
+    }
+    // 回看模式下从快照中查找，实时模式下从当前生物列表查找
+    const state = get();
+    const list =
+      state.viewingIndex !== null
+        ? state.snapshots[state.viewingIndex]?.creatures ?? state.creatures
+        : state.creatures;
+    const creature = list.find((c) => c.id === id);
+    set({
+      inspectingCreatureId: id,
+      selectedCreatureId: id,
+      trackedSpeciesId: creature ? creature.speciesId : null,
+    });
+  },
 
   setHoveredSpecies: (id) => set({ hoveredSpeciesId: id }),
   setTrackedSpecies: (id) => set({ trackedSpeciesId: id }),
@@ -170,11 +238,7 @@ export const useEcoStore = create<EcoState>((set, get) => ({
       if (last) {
         set({
           viewingIndex: null,
-          creatures: last.creatures.map((c) => ({ ...c })),
-          env: { ...last.env },
-          populations: { ...last.populations },
-          tick: last.tick,
-          simTime: last.simTime,
+          ...restoreFromSnapshot(last),
           playing: true,
         });
         return;
@@ -199,11 +263,7 @@ export const useEcoStore = create<EcoState>((set, get) => ({
       if (last) {
         set({
           viewingIndex: null,
-          creatures: last.creatures.map((c) => ({ ...c })),
-          env: { ...last.env },
-          populations: { ...last.populations },
-          tick: last.tick,
-          simTime: last.simTime,
+          ...restoreFromSnapshot(last),
         });
       } else {
         set({ viewingIndex: null });
@@ -212,14 +272,11 @@ export const useEcoStore = create<EcoState>((set, get) => ({
     }
     const snap = get().snapshots[index];
     if (!snap) return;
+    // 使用 cloneCreature 逐字段深拷贝，保证回看状态与快照完全独立
     set({
       viewingIndex: index,
       playing: false,
-      creatures: snap.creatures.map((c) => ({ ...c })),
-      env: { ...snap.env },
-      populations: { ...snap.populations },
-      tick: snap.tick,
-      simTime: snap.simTime,
+      ...restoreFromSnapshot(snap),
     });
   },
 

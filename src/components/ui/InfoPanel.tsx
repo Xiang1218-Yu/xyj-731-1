@@ -7,9 +7,16 @@ import { Badge, Button } from './primitives';
 
 export function InfoPanel() {
   const inspectingId = useEcoStore((s) => s.inspectingCreatureId);
-  const creatures = useEcoStore((s) => s.creatures);
-  const env = useEcoStore((s) => s.env);
+  const liveCreatures = useEcoStore((s) => s.creatures);
+  const liveEnv = useEcoStore((s) => s.env);
+  const snapshots = useEcoStore((s) => s.snapshots);
+  const viewingIndex = useEcoStore((s) => s.viewingIndex);
   const trackCreature = useEcoStore((s) => s.trackCreature);
+
+  // 回看模式下从对应快照中读取生物与环境，实时模式下使用当前状态
+  const activeSnapshot = viewingIndex !== null ? snapshots[viewingIndex] ?? null : null;
+  const creatures = activeSnapshot?.creatures ?? liveCreatures;
+  const env = activeSnapshot?.env ?? liveEnv;
 
   const creature = inspectingId
     ? creatures.find((c) => c.id === inspectingId)

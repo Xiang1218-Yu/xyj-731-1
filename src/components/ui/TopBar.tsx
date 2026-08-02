@@ -11,12 +11,9 @@ const TROPHIC_ORDER: TrophicLevel[] = ['producer', 'primary', 'secondary', 'apex
 export function TopBar() {
   const populations = useEcoStore((s) => s.populations);
   const species = useEcoStore((s) => s.species);
-  const dayCount = useEcoStore((s) => s.env.dayCount);
+  const simTime = useEcoStore((s) => s.simTime);
   const reset = useEcoStore((s) => s.reset);
-  const sceneName = useEcoStore((s) => {
-    const id = s.currentSceneId;
-    return id;
-  });
+  const sceneName = useEcoStore((s) => s.currentSceneId);
 
   // 按营养级汇总数量
   const countsByTrophic = TROPHIC_ORDER.reduce(
@@ -32,7 +29,8 @@ export function TopBar() {
   );
 
   const total = Object.values(populations).reduce((a, b) => a + b, 0);
-  const day = Math.floor(useEcoStore.getState().simTime / SIM.DAY_LENGTH) + 1;
+  // 响应式订阅 simTime，倍速推进时日期也会实时更新
+  const day = Math.floor(simTime / SIM.DAY_LENGTH) + 1;
 
   return (
     <header className="pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-center justify-between gap-4 p-4">
@@ -80,8 +78,8 @@ export function TopBar() {
       <div className="pointer-events-auto flex items-center gap-2">
         <div className="panel-card flex items-center gap-2 px-4 py-2.5">
           <span className="text-[11px] text-pine-900/60">已模拟</span>
-          <span className="font-mono text-[15px] font-700 text-pine-950">
-            第 {day || dayCount + 1} 天
+          <span className="font-mono text-[15px] font-bold text-pine-950">
+            第 {day} 天
           </span>
         </div>
         <Button variant="outline" size="icon" onClick={reset} title="重置当前场景">

@@ -24,10 +24,10 @@ const BOUNDS = {
 };
 
 let creatureSeq = 0;
-/** 生成全局唯一生物 id */
-function nextCreatureId(): string {
+/** 生成全局唯一生物 id，使用注入的 rng 生成随机后缀，保证可复现 */
+function nextCreatureId(rng: RNG): string {
   creatureSeq += 1;
-  return `c-${creatureSeq}-${Math.floor(Math.random() * 1e6)}`;
+  return `c-${creatureSeq}-${Math.floor(rng() * 1e6)}`;
 }
 
 /** 根据栖息水层返回随机生成位置与活动 y 范围 */
@@ -56,7 +56,7 @@ export function createCreature(speciesId: string, rng: RNG): Creature {
   const { pos } = habitatRange(def.habitat, rng);
   const scale = randRange(rng, def.sizeRange[0], def.sizeRange[1]);
   return {
-    id: nextCreatureId(),
+    id: nextCreatureId(rng),
     speciesId: def.id,
     position: pos,
     velocity: [randRange(rng, -0.5, 0.5), 0, randRange(rng, -0.5, 0.5)],
@@ -195,14 +195,14 @@ export function tickSimulation(input: TickInput): TickResult {
   }
   const env = computeEnvironment(timeOfDay, dayCount, input.env.pollution);
 
-  // 用 Map 便于查找
-  const alive = input.creatures.filter((c) => c.alive);
-  const byId = new Map<string, Creature>();
+  // 本轮存活生物列表。捕食/死亡时会即时从中移除，保证后续生物不会再以死亡个体为目标，
+  // 繁殖时的同伴判断也只统计真正存活的同种。
+  const alive: Creature[] = input.creatures.filter((c) => c.alive);
   const newborns: Creature[] = [];
 
-  for (const c of alive) byId.set(c.id, c);
-
-  for (const c of alive) {
+  for (let i = 0; i < alive.length; i += 1) {
+    const c = alive[i];
+    if (!c || !c.alive) continue;
     const def = SPECIES[c.speciesId];
     if (!def) continue;
     const resting = isResting(c.speciesId, env);
@@ -230,17 +230,20 @@ export function tickSimulation(input: TickInput): TickResult {
     // 3. 行为决策：寻找猎物或游荡
     let desiredVel = c.velocity;
     if (def.prey.length > 0 && c.energy < def.maxEnergy * 0.85 && !resting) {
-      // 寻找最近的可食物种
+      // 寻找最近的、本轮仍存活的可食物种
       let nearest: Creature | null = null;
       let nearestDist = Infinity;
-      for (const other of alive) {
-        if (!other.alive) continue;
+      let nearestIndex = -1;
+      for (let j = 0; j < alive.length; j += 1) {
+        const other = alive[j];
+        if (!other || !other.alive) continue;
         if (!def.prey.includes(other.speciesId)) continue;
         if (other.id === c.id) continue;
         const d = len(sub(c.position, other.position));
         if (d < nearestDist) {
           nearestDist = d;
           nearest = other;
+          nearestIndex = j;
         }
       }
       if (nearest && nearestDist < 9) {
@@ -251,14 +254,23 @@ export function tickSimulation(input: TickInput): TickResult {
           dir[1] * def.moveSpeed,
           dir[2] * def.moveSpeed,
         ];
-        // 接触到猎物 -> 捕食
+        // 接触到猎物 -> 捕食：标记死亡并立即从存活列表移除，避免同帧后续生物继续以其为目标
         if (nearestDist < c.scale + nearest.scale + 0.35) {
           nearest.alive = false;
+          if (nearestIndex >= 0) {
+            alive.splice(nearestIndex, 1);
+            if (nearestIndex <= i) i -= 1;
+          }
           c.energy = Math.min(def.maxEnergy, c.energy + def.energyGain);
           events.push({
             type: 'predation',
             creatureId: c.id,
             speciesId: c.speciesId,
+          });
+          events.push({
+            type: 'death',
+            creatureId: nearest.id,
+            speciesId: nearest.speciesId,
           });
         }
       } else {
@@ -319,13 +331,17 @@ export function tickSimulation(input: TickInput): TickResult {
     }
     c.energy = clamp(c.energy, 0, def.maxEnergy);
 
-    // 5. 死亡判断
+    // 5. 死亡判断：能量耗尽或寿命结束。同样即时从存活列表移除
     if (c.energy <= 0 || c.age >= def.lifespan) {
       c.alive = false;
+      alive.splice(i, 1);
+      i -= 1;
       events.push({ type: 'death', creatureId: c.id, speciesId: c.speciesId });
+      continue;
     }
 
-    // 6. 繁殖：能量达阈值且附近有同种
+    // 6. 繁殖：能量达阈值且本轮仍存活、附近有同种
+    // alive 中已即时移除了本帧被捕食/死亡的个体，因此 hasMate 只统计真正存活的同种
     if (
       c.alive &&
       c.energy >= def.reproductionThreshold &&
@@ -351,9 +367,8 @@ export function tickSimulation(input: TickInput): TickResult {
     }
   }
 
-  const survivors = alive
-    .filter((c) => c.alive)
-    .concat(newborns);
+  // alive 在循环中已即时移除了被捕食/死亡的个体，这里直接合并新生个体
+  const survivors = alive.concat(newborns);
 
   return { creatures: survivors, env, events };
 }

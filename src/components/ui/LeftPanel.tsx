@@ -24,7 +24,7 @@ export function LeftPanel() {
   const creatureCount = useEcoStore((s) => s.creatures.length);
 
   return (
-    <aside className="pointer-events-auto absolute left-4 top-20 z-20 flex max-h-[calc(100vh-16rem)] w-72 flex-col gap-3">
+    <aside className="flex w-72 max-h-full flex-col gap-3">
       {/* 预设场景 */}
       <Card className="p-3">
         <div className="mb-2 flex items-center justify-between">

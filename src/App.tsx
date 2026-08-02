@@ -25,14 +25,19 @@ export default function App() {
 
       {/* UI 浮层 */}
       <TopBar />
-      <LeftPanel />
-
-      <div className="pointer-events-none absolute right-4 top-20 z-20 flex max-h-[calc(100vh-16rem)] flex-col gap-3">
-        <div className="pointer-events-auto">
-          <FoodWebPanel />
+      <div className="pointer-events-none absolute bottom-40 left-4 right-4 top-20 z-20 flex justify-between gap-4">
+        {/* 左侧面板容器，留出底部空间避免遮挡时间轴 */}
+        <div className="pointer-events-auto flex max-h-full flex-col">
+          <LeftPanel />
         </div>
-        <div className="pointer-events-auto">
-          <InfoPanel />
+        {/* 右侧面板容器：食物网 + 生物追踪，底部留白避免被时间轴遮挡 */}
+        <div className="pointer-events-none flex max-h-full flex-col gap-3 overflow-y-auto pr-1">
+          <div className="pointer-events-auto">
+            <FoodWebPanel />
+          </div>
+          <div className="pointer-events-auto">
+            <InfoPanel />
+          </div>
         </div>
       </div>
 

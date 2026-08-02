@@ -12,7 +12,7 @@ const SPEEDS: Speed[] = [1, 2, 4];
 export function Timeline() {
   const playing = useEcoStore((s) => s.playing);
   const speed = useEcoStore((s) => s.speed);
-  const simTime = useEcoStore((s) => s.simTime);
+  const liveSimTime = useEcoStore((s) => s.simTime);
   const snapshots = useEcoStore((s) => s.snapshots);
   const viewingIndex = useEcoStore((s) => s.viewingIndex);
   const togglePlay = useEcoStore((s) => s.togglePlay);
@@ -21,8 +21,17 @@ export function Timeline() {
   const env = useEcoStore((s) => s.env);
 
   const maxIndex = Math.max(0, snapshots.length - 1);
-  const sliderValue = viewingIndex ?? maxIndex;
-  const isViewing = viewingIndex !== null;
+  // 将回看索引归一化到有效范围：快照数组丢弃旧帧后也不会越界
+  const safeViewingIndex =
+    viewingIndex !== null ? Math.min(Math.max(0, viewingIndex), maxIndex) : null;
+  const sliderValue = safeViewingIndex ?? maxIndex;
+  const isViewing = safeViewingIndex !== null;
+
+  // 回看时显示所查看快照自己的时间，实时时显示当前 simTime
+  const viewedSnap = isViewing ? snapshots[safeViewingIndex] : undefined;
+  const displayTime = viewedSnap?.simTime ?? liveSimTime;
+  const displayPhase = viewedSnap?.env.phase ?? env.phase;
+  const displayIsNight = viewedSnap?.env.isNight ?? env.isNight;
 
   function handleScrub(e: React.ChangeEvent<HTMLInputElement>) {
     const idx = Number(e.target.value);
@@ -34,11 +43,11 @@ export function Timeline() {
   }
 
   const phaseLabel =
-    env.phase === 'day'
+    displayPhase === 'day'
       ? '白天'
-      : env.phase === 'dawn'
+      : displayPhase === 'dawn'
         ? '黎明'
-        : env.phase === 'dusk'
+        : displayPhase === 'dusk'
           ? '黄昏'
           : '夜晚';
 
@@ -108,14 +117,14 @@ export function Timeline() {
 
           {/* 时间显示 */}
           <div className="flex items-center gap-2">
-            {env.isNight ? (
+            {displayIsNight ? (
               <Moon size={14} className="text-night-700" />
             ) : (
               <Sun size={14} className="text-sand-500" />
             )}
             <div className="text-right leading-tight">
-              <div className="font-mono text-[12px] font-600 text-pine-950">
-                {formatSimClock(simTime, SIM.DAY_LENGTH)}
+              <div className="font-mono text-[12px] font-semibold text-pine-950">
+                {formatSimClock(displayTime, SIM.DAY_LENGTH)}
               </div>
               <div className="text-[9.5px] text-pine-900/50">{phaseLabel}</div>
             </div>

@@ -24,14 +24,33 @@ export function InfoPanel() {
 
   if (!creature) {
     return (
-      <div className="panel-card flex w-80 flex-col items-center gap-2 p-5 text-center">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-pine-900/10 text-pine-900/50">
-          <Crosshair size={20} />
+      <div className="panel-card relative w-80 overflow-hidden p-5">
+        {/* 脉冲引导条，提示下方有可交互的追踪面板 */}
+        <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-gradient-to-r from-glow-500 via-aqua-500 to-glow-500" />
+        <div className="flex flex-col items-center gap-3 pt-2 text-center">
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-aqua-500/10 text-aqua-600">
+            <Crosshair size={26} />
+            <span className="absolute inset-0 animate-ping rounded-full bg-aqua-500/20" />
+          </div>
+          <div>
+            <h3 className="font-display text-[16px] font-semibold text-pine-950">
+              未追踪生物
+            </h3>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-pine-900/55">
+              点击生态缸中的任意生物，即可进入追踪模式。
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full bg-aqua-500/10 px-3 py-1.5 text-[10.5px] font-semibold text-aqua-600">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-aqua-500 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-aqua-500" />
+            </span>
+            相机跟随 · 光环高亮 · 实时数据
+          </div>
+          <p className="text-[10px] leading-relaxed text-pine-900/40">
+            追踪后本面板会实时刷新该生物的能量、年龄、状态与捕食目标
+          </p>
         </div>
-        <h3 className="panel-title">生物追踪</h3>
-        <p className="text-[11.5px] leading-relaxed text-pine-900/55">
-          点击生态缸中的任意生物，进入追踪模式。相机会自动跟随该生物移动，周围显示光环高亮，这里实时刷新它的能量、年龄与状态。
-        </p>
       </div>
     );
   }
@@ -46,8 +65,10 @@ export function InfoPanel() {
   const targetName = targetCreature ? SPECIES[targetCreature.speciesId]?.name : undefined;
 
   return (
-    <div className="panel-card w-80 animate-fadeIn p-4">
-      <div className="flex items-start justify-between gap-2">
+    <div className="panel-card relative w-80 animate-fadeIn overflow-hidden p-4 ring-2 ring-glow-500/60 shadow-[0_0_24px_-6px_rgba(110,231,214,0.6)]">
+      {/* 顶部高亮条，强化"正在追踪"的视觉反馈 */}
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-glow-500 via-aqua-500 to-glow-500" />
+      <div className="flex items-start justify-between gap-2 pt-1">
         <div className="flex items-center gap-2.5">
           <span
             className="h-4 w-4 rounded-full ring-2 ring-paper-200"

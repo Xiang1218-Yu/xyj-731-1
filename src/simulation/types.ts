@@ -1,4 +1,4 @@
-// 生态模拟核心类型定义 —— 全项目禁止使用 any，所有结构在此集中定义
+// 生态模拟核心类型定义 —— 全项目禁止使用 any 类型，所有结构在此集中定义
 
 /** 营养级分类 */
 export type TrophicLevel =
@@ -8,8 +8,8 @@ export type TrophicLevel =
   | 'apex'
   | 'decomposer';
 
-/** 昼夜节律类型：日行 / 夜行 / 任意 */
-export type CircadianType = 'diurnal' | 'nocturnal' | 'any';
+/** 昼夜节律类型：日行 / 夜行 / 昼夜均活跃 */
+export type CircadianType = 'diurnal' | 'nocturnal' | 'both';
 
 /** 栖息水层：水体中 / 水底 / 水面以上空气层 / 水面 */
 export type Habitat = 'water' | 'bottom' | 'air' | 'surface';

@@ -4,29 +4,34 @@ import * as THREE from 'three';
 import { useEcoStore } from '../../store/ecoStore';
 
 // ============================================================
-// 追踪模式相机
-// 当用户点击生物进入追踪模式后，相机平滑跟随该生物
-// 使用阻尼系数实现流畅跟随，避免抖动
+// 追踪模式相机控制器
+// 通过平滑移动 OrbitControls 的 target 来跟随生物，
+// 用户仍可自由拖动旋转、缩放视角，不会与控制器冲突。
 // ============================================================
 
-const FOLLOW_DISTANCE = 3.5;
-const FOLLOW_HEIGHT = 2.8;
-// 位置阻尼：越小越平滑（帧率无关）
-const POSITION_DAMPING = 3.0;
-// 注视点阻尼
-const LOOKAT_DAMPING = 5.0;
+// OrbitControls 的最小类型接口（避免依赖 three-stdlib 类型导入）
+interface OrbitControlsLike {
+  target: THREE.Vector3;
+  update: () => void;
+}
+
+const FOLLOW_HEIGHT = 0.5;
+// target 跟随阻尼
+const TARGET_DAMPING = 4.0;
+// 首次进入时相机定位阻尼
+const INITIAL_DAMPING = 2.5;
+// 首次定位时相机与目标的距离
+const INITIAL_DISTANCE = 6;
 
 export default function TrackingCamera() {
-  const { camera } = useThree();
+  const camera = useThree(s => s.camera);
+  const controls = useThree(s => s.controls) as OrbitControlsLike | null;
   const trackedOrganismId = useEcoStore(s => s.trackedOrganismId);
   const organisms = useEcoStore(s => s.organisms);
 
-  // 平滑后的相机目标位置
-  const smoothedCamPos = useRef(new THREE.Vector3(10, 7, 12));
-  // 平滑后的注视点
-  const smoothedLookAt = useRef(new THREE.Vector3(0, 0, 0));
-  // 标记是否刚进入追踪，需要快速定位
+  const smoothedTarget = useRef(new THREE.Vector3(0, 0, 0));
   const justActivated = useRef(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
     if (trackedOrganismId) {
@@ -34,48 +39,46 @@ export default function TrackingCamera() {
     }
   }, [trackedOrganismId]);
 
-  // 初始化平滑值
+  // 初始化平滑目标为控制器当前 target
   useEffect(() => {
-    smoothedCamPos.current.copy(camera.position);
-  }, [camera]);
+    if (controls && !initialized.current) {
+      smoothedTarget.current.copy(controls.target);
+      initialized.current = true;
+    }
+  }, [controls]);
 
   useFrame((_state, delta) => {
-    if (!trackedOrganismId) {
-      // 非追踪模式不做任何相机控制，交给 OrbitControls
-      return;
-    }
+    if (!trackedOrganismId || !controls) return;
 
     const trackedOrg = organisms.find(o => o.id === trackedOrganismId);
     if (!trackedOrg || !trackedOrg.alive) return;
 
-    // 计算理想相机位置（生物后上方）
-    const idealPos = new THREE.Vector3(
-      trackedOrg.position[0] - Math.sin(trackedOrg.rotation) * FOLLOW_DISTANCE,
-      trackedOrg.position[1] + FOLLOW_HEIGHT,
-      trackedOrg.position[2] - Math.cos(trackedOrg.rotation) * FOLLOW_DISTANCE
-    );
-
-    const idealLookAt = new THREE.Vector3(
+    // 理想注视点：生物位置略上方
+    const idealTarget = new THREE.Vector3(
       trackedOrg.position[0],
-      trackedOrg.position[1] + 0.3,
+      trackedOrg.position[1] + FOLLOW_HEIGHT,
       trackedOrg.position[2]
     );
 
-    // 刚激活时快速到位，之后平滑跟随
-    const posDamping = justActivated.current
-      ? 1.0
-      : 1 - Math.exp(-POSITION_DAMPING * delta);
-    const lookDamping = justActivated.current
-      ? 1.0
-      : 1 - Math.exp(-LOOKAT_DAMPING * delta);
+    // 首次激活时，将相机平滑移动到生物附近合适的观察位置
+    if (justActivated.current) {
+      const offset = new THREE.Vector3(3, 2.5, 4)
+        .normalize()
+        .multiplyScalar(INITIAL_DISTANCE);
+      const desiredCamPos = idealTarget.clone().add(offset);
+      const camLerp = 1 - Math.exp(-INITIAL_DAMPING * delta);
+      camera.position.lerp(desiredCamPos, camLerp);
+      // 当相机足够接近目标位置时结束初始定位
+      if (camera.position.distanceTo(desiredCamPos) < 0.3) {
+        justActivated.current = false;
+      }
+    }
 
-    smoothedCamPos.current.lerp(idealPos, posDamping);
-    smoothedLookAt.current.lerp(idealLookAt, lookDamping);
-
-    camera.position.copy(smoothedCamPos.current);
-    camera.lookAt(smoothedLookAt.current);
-
-    justActivated.current = false;
+    // 平滑移动 OrbitControls 的 target 到生物位置
+    const targetLerp = 1 - Math.exp(-TARGET_DAMPING * delta);
+    smoothedTarget.current.lerp(idealTarget, targetLerp);
+    controls.target.copy(smoothedTarget.current);
+    controls.update();
   });
 
   return null;

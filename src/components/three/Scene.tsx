@@ -84,7 +84,6 @@ function SceneContent() {
   const viewingTimestamp = useEcoStore(s => s.viewingTimestamp);
   const snapshots = useEcoStore(s => s.snapshots);
   const liveEcoTime = useEcoStore(s => s.ecoTime);
-  const trackedOrganismId = useEcoStore(s => s.trackedOrganismId);
 
   // 回看模式下在两个快照之间插值，实时模式直接使用当前状态
   const { displayOrganisms, displayEcoTime } = useMemo<{
@@ -122,12 +121,15 @@ function SceneContent() {
       ))}
 
       <OrbitControls
-        enablePan={!trackedOrganismId}
+        makeDefault
+        enablePan
         enableZoom
-        enableRotate={!trackedOrganismId}
-        minDistance={5}
+        enableRotate
+        minDistance={3}
         maxDistance={30}
         target={[0, 0, 0]}
+        enableDamping
+        dampingFactor={0.12}
       />
     </>
   );
